@@ -159,7 +159,6 @@ Raw Data
 
 ```
 project/
-│
 ├── app.py  
 ├── generate_data.py 
 ├── test_duckdb.py  
