@@ -161,12 +161,9 @@ Raw Data
 project/
 │
 ├── app.py  
-├── generate_data.py  
-├── pack/  
-│   └── config.py  
-│  
-├── data/              # ignored (local DB)
-│  
+├── generate_data.py 
+├── test_duckdb.py  
+├── data/              # ignored (local DB)│  
 ├── pack/
 │   ├── anomaly/
 │   ├── forecast/
@@ -174,8 +171,12 @@ project/
 │   ├── simulation/
 │   ├── services/
 │   └── ui/
-│  
+│   └── config.py  
+│   └── data_access.py
+│   └── __init__.py
+│── artifacts/  
 ├── requirements.txt  
+├── eda.ipynb 
 ├── README.md  
 └── .gitignore  
 ```
