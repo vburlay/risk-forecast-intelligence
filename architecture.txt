@@ -1,0 +1,299 @@
+IQ PROJECT — STRUCTURE & RESPONSIBILITIES
+
+========================
+
+1. CORE PRINCIPLE
+   ========================
+   Architecture layers:
+
+2. data_access → data layer (DuckDB)
+
+3. domain logic → forecast / anomaly / risk / simulation
+
+4. services → orchestration (business assembly)
+
+5. ui → presentation layer (Dash)
+
+6. artifacts → models 
+
+Data flow:
+data → forecast → anomaly → risk → simulation → ui
+
+========================
+2. DATA LAYER
+=============
+
+pack/data_access.py
+
+Responsibility:
+
+* connect to DuckDB
+* execute SQL queries
+* load datasets
+
+Functions:
+
+* duck_query_df()
+* load_team_pg_data()
+* get_raw_bestand_top10_by_ipl()
+* get_team_values()
+
+========================
+3. CONFIG
+=========
+
+pack/config.py
+
+Responsibility:
+
+* DB paths (DB_PATH)
+* constants
+* global configuration
+
+========================
+4. FORECAST LAYER
+=================
+
+pack/forecast/
+
+features.py:
+
+* feature engineering
+* lag features
+* rolling statistics
+* time-based features
+
+Functions:
+
+* make_lag_features()
+* make_time_features()
+
+models.py:
+
+* forecasting models
+
+Functions:
+
+* build_baseline_forecast()
+* train_xgb_model()
+* predict_forecast()
+
+(Future: Prophet / ARIMA / advanced ML)
+
+========================
+5. ANOMALY LAYER
+================
+
+pack/anomaly/detection.py
+
+Responsibility:
+
+* anomaly detection
+* rolling mean / std
+* anomaly scoring
+
+Functions:
+
+* prepare_anomaly_series()
+* anomaly_figure()
+* compute_anomaly_score()
+
+========================
+6. RISK LAYER
+=============
+
+pack/risk/
+
+core.py:
+
+* deterministic risk logic
+
+Functions:
+
+* combined_risikostatus()
+* calculate_dynamic_critical_threshold()
+* calculate_days_to_critical()
+
+survival.py:
+
+* probabilistic risk (future-ready)
+
+Functions:
+
+* build_survival_risk_df()
+* P(Gap in 30 Days)
+* Expected Time to Gap
+
+(Future: full survival model)
+
+========================
+7. SIMULATION LAYER
+===================
+
+pack/simulation/
+
+scenario.py:
+
+* WHAT-IF scenarios (external changes)
+
+Functions:
+
+* simulate_volume()
+* simulate_trend()
+* simulate_volatility()
+
+intervention.py:
+
+* decision layer (actions)
+
+Functions:
+
+* reduce_gap()
+* stabilize()
+* forecast_shift()
+
+========================
+8. SERVICES LAYER (CRITICAL)
+============================
+
+pack/services/
+
+This is the orchestration layer.
+UI must NOT call domain logic directly.
+
+anomaly_service.py:
+
+* prepare anomaly outputs
+* anomaly KPIs
+
+forecast_service.py:
+
+* prepare forecast outputs
+* aggregation
+
+risk_service.py:
+
+* build_team_risk_df()
+* build_survival_risk_df()
+
+monitoring_service.py:
+
+* dashboard KPIs
+* alerts
+* system overview
+
+Functions:
+
+* get_monitoring_kpis()
+* get_monitoring_alerts()
+
+simulation_service.py:
+
+* run scenarios
+* compare baseline vs scenario
+
+Functions:
+
+* run_simulation()
+* build_comparison_df()
+
+========================
+9. UI LAYER
+===========
+
+pack/ui/
+
+Responsibility:
+
+* layout
+* charts
+* callbacks
+
+NO business logic here
+
+monitoring.py:
+
+* KPIs
+* overview
+* alerts
+
+forecast.py:
+
+* forecast charts
+
+anomaly.py:
+
+* anomaly charts
+* drill-down
+
+risk.py:
+
+* risk tables
+
+intervention.py:
+
+* decision simulation UI
+
+system.py:
+
+* system / technical tabs
+
+========================
+10. ENTRY POINT
+===============
+
+app.py
+
+Responsibility:
+
+* initialize Dash app
+* define tabs
+* connect UI modules
+
+========================
+11. MOCK DATA
+=============
+
+generate_mock_data.py
+
+Responsibility:
+
+* generate synthetic database
+* simulate production-like data
+
+========================
+12. TESTING
+===========
+
+test_duckdb.py
+
+Responsibility:
+
+* test DB connection
+* validate tables
+
+========================
+13. KEY RULES
+=============
+
+1. UI contains no business logic
+2. Services = orchestration layer
+3. Domain = mathematical logic
+4. data_access = only SQL
+5. avoid duplication
+
+Correct flow:
+
+UI → services → domain → data_access
+
+========================
+14. SYSTEM TYPE
+===============
+
+This is NOT just a dashboard.
+
+This is:
+Decision Intelligence System
+
+You are building:
+Applied Science Product
