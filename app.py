@@ -34,6 +34,13 @@ from pack.services.forecast_service import (
     build_forecast_detail_df,
 )
 
+from pack.services.monitoring_service import (
+    get_monitoring_kpis,
+    get_monitoring_alerts_data,
+    get_monitoring_stand_text,
+    get_monitoring_grid_data,
+)
+
 # ============================================================
 # Konstanten
 # ============================================================
@@ -335,12 +342,6 @@ def get_refresh_state():
         }
 
 
-def get_monitoring_stand_text() -> str:
-    state = get_refresh_state()
-    stand = state["last_stand"] or get_latest_ipl_value()
-    return f"Stand: {stand}"
-
-
 def wait_until_db_readable(max_wait_seconds: float = 8.0) -> bool:
     started = time.time()
     while time.time() - started < max_wait_seconds:
@@ -621,19 +622,14 @@ def get_delta_color(val: str) -> str:
 
 
 def build_monitoring_alerts_children():
-    df = build_team_risk_df()
-    if df.empty:
+    data = get_monitoring_alerts_data()
+
+    top_neg = data["top_neg"]
+    top_pos = data["top_pos"]
+    n_crit = data["n_crit"]
+
+    if top_neg is None and top_pos is None and n_crit == 0:
         return [html.Span("Keine aktuellen Hinweise", style={"color": TEXT, "fontWeight": "bold"})]
-
-    df = df.copy()
-    df["AbwNum"] = pd.to_numeric(
-        df["Abweichung"].str.replace("+", "", regex=False),
-        errors="coerce",
-    ).fillna(0)
-
-    top_pos = df.sort_values("AbwNum", ascending=False).head(1)
-    top_neg = df.sort_values("AbwNum", ascending=True).head(1)
-    n_crit = int((df["Risikostatus"] == "Kritisch").sum())
 
     children = []
 
@@ -686,15 +682,13 @@ def build_monitoring_alerts_children():
             ]
         )
 
-    if not top_neg.empty:
-        row = top_neg.iloc[0]
-        add_team_part(row["Team"], row["Abweichung"])
+    if top_neg is not None:
+        add_team_part(top_neg["Team"], top_neg["Abweichung"])
 
-    if not top_pos.empty:
+    if top_pos is not None:
         if children:
             add_separator()
-        row = top_pos.iloc[0]
-        add_team_part(row["Team"], row["Abweichung"])
+        add_team_part(top_pos["Team"], top_pos["Abweichung"])
 
     if n_crit > 0:
         if children:
@@ -710,9 +704,6 @@ def build_monitoring_alerts_children():
                 },
             )
         )
-
-    if not children:
-        return [html.Span("Keine kritischen Hinweise", style={"color": TEXT, "fontWeight": "bold"})]
 
     return children
 
@@ -1414,26 +1405,6 @@ def comparison_grid_data(mode: str, intensity_pct: float):
 # ============================================================
 # Grids
 # ============================================================
-def monitoring_risk_grid_data():
-    out = build_team_risk_df()
-    if out.empty:
-        return [], []
-
-    display_df = out.drop(columns=["GapRiskValue"]).copy()
-
-    column_defs = [
-        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
-        {"headerName": "Erwartet", "field": "Erwartet", "minWidth": 120, "flex": 1},
-        {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
-        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
-        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
-    ]
-    return display_df.to_dict("records"), column_defs
-
-
 def survival_risk_grid_data():
     out = build_survival_risk_df()
     if out.empty:
@@ -1453,25 +1424,6 @@ def survival_risk_grid_data():
         {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
     ]
     return display_df.to_dict("records"), column_defs
-
-
-# ============================================================
-# Monitoring KPIs / Alerts
-# ============================================================
-def get_monitoring_kpis() -> dict:
-    df = build_team_risk_df()
-    if df.empty:
-        return {k: "—" for k in ["luecken", "abweichung", "auffaelligkeiten", "teams_risk", "max_risk"]}
-
-    max_risk_pct = int(np.round(df["GapRiskValue"].max() * 100, 0))
-
-    return {
-        "luecken": str(int(df["Aktuell"].sum())),
-        "abweichung": f"{int(pd.to_numeric(df['Abweichung'].str.replace('+', '', regex=False), errors='coerce').fillna(0).sum()):+d}",
-        "auffaelligkeiten": str(int((pd.to_numeric(df["Anomaliesignal"], errors="coerce").fillna(0) >= 1.5).sum())),
-        "teams_risk": str(int((df["Risikostatus"] != "Normal").sum())),
-        "max_risk": f"{max_risk_pct}%",
-    }
 
 
 # ============================================================
@@ -1864,7 +1816,7 @@ def render_tab(tab):
     if tab == "tab-monitoring":
         kpi = get_monitoring_kpis()
         alert_children = build_monitoring_alerts_children()
-        monitoring_rows, monitoring_cols = monitoring_risk_grid_data()
+        monitoring_rows, monitoring_cols = get_monitoring_grid_data()
 
         return html.Div(
             [
@@ -1899,7 +1851,7 @@ def render_tab(tab):
                 ),
                 html.Div(
                     id="monitoring-stand-line",
-                    children=get_monitoring_stand_text(),
+                    children=get_monitoring_stand_text(get_refresh_state()["last_stand"]),
                     style=MONITORING_INFO_LINE_STYLE,
                 ),
                 html.Div(
@@ -2521,7 +2473,7 @@ def poll_refresh_status(n_intervals, current_version):
         icon = "⏳" if n_intervals % 2 == 0 else "⌛"
         return f"{icon} Daten werden aktualisiert ...", False, current_version
 
-    stand_text = get_monitoring_stand_text()
+    stand_text = get_monitoring_stand_text(state["last_stand"])
 
     if state["success"] is True:
         return stand_text, True, current_version + 1
@@ -2544,7 +2496,7 @@ def refresh_stand_line_on_open(active_tab, n_intervals):
         icon = "⏳" if n_intervals % 2 == 0 else "⌛"
         return f"{icon} Daten werden aktualisiert ..."
 
-    return get_monitoring_stand_text()
+    return get_monitoring_stand_text(state["last_stand"])
 
 
 @app.callback(
@@ -2577,7 +2529,7 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
 
     kpi = get_monitoring_kpis()
     alert_children = build_monitoring_alerts_children()
-    rows, cols = monitoring_risk_grid_data()
+    rows, cols = get_monitoring_grid_data()
 
     return (
         kpi["luecken"],
