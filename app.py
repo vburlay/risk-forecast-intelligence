@@ -13,9 +13,7 @@ import dash_ag_grid as dag
 from dash import Dash, html, dcc, Input, Output, State, no_update, ALL, ctx
 
 from pack.config import (
-    TABLE_PG,
     TABLE_ANOM,
-    TABLE_RAW,
     ANOMALY_SENSITIVITY_MAP,
     APP_TITLE,
     DEFAULT_REFRESH_INTERVAL_MS,
@@ -24,11 +22,16 @@ from pack.config import (
 from pack.data_access import (
     duck_query_df,
     load_team_pg_data,
-    load_team_pg_by_team,
     load_anomaly_data,
     get_raw_bestand_top10_by_ipl,
     get_team_values,
     get_latest_ipl_value,
+)
+
+from pack.services.forecast_service import (
+    prepare_forecast_team_dataset,
+    get_forecast_team_kpis,
+    build_forecast_detail_df,
 )
 
 # ============================================================
@@ -1161,96 +1164,45 @@ def build_survival_scatter_fig():
 
 
 # ============================================================
-# Prognose KPI + Detailberechnung
+# Forecast grids
 # ============================================================
-def get_forecast_team_kpis(team_value: Optional[str]) -> dict:
-    if not team_value:
-        return {"luecken": "—", "abweichung": "—", "max_risk": "—"}
-
-    df_local = load_team_pg_by_team(str(team_value))
-
-    if df_local.empty:
-        return {"luecken": "—", "abweichung": "—", "max_risk": "—"}
-
-    df_local["TAGEN"] = pd.to_numeric(df_local["TAGEN"], errors="coerce").fillna(0)
-    df_local["PROGNOSE"] = pd.to_numeric(df_local["PROGNOSE"], errors="coerce").fillna(0)
-
-    latest_row = df_local.iloc[-1]
-
-    aktuell = str(int(round(float(latest_row["TAGEN"]), 0)))
-    abweichung_num = int(round(float(latest_row["TAGEN"] - latest_row["PROGNOSE"]), 0))
-    abweichung = f"{abweichung_num:+d}"
-
-    risk_df = build_team_risk_df()
-    risk_row = risk_df[risk_df["Team"].astype(str) == str(team_value)]
-
-    if not risk_row.empty:
-        max_risk = str(risk_row["GapSignal"].iloc[0])
-    else:
-        residual = abs(float(latest_row["TAGEN"] - latest_row["PROGNOSE"]))
-        prognose = float(latest_row["PROGNOSE"])
-        gap_value = 0.0 if prognose == 0 else min(residual / prognose, 0.99)
-        max_risk = f"{int(round(gap_value * 100, 0))}%"
-
-    return {
-        "luecken": aktuell,
-        "abweichung": abweichung,
-        "max_risk": max_risk,
-    }
-
-
-def build_forecast_detail_df(team_value: Optional[str]) -> pd.DataFrame:
-    if not team_value:
-        return pd.DataFrame()
-
-    df = load_team_pg_by_team(str(team_value))
-
+def forecast_detail_grid_data(team_value: Optional[str]):
+    df = build_forecast_detail_df(
+        team_value=team_value,
+        calculate_days_to_critical_fn=calculate_days_to_critical,
+        combined_risikostatus_fn=combined_risikostatus,
+    )
     if df.empty:
-        return pd.DataFrame()
+        return [], []
 
-    df = df.copy()
-    df["TAGEN"] = pd.to_numeric(df["TAGEN"], errors="coerce").fillna(0)
-    df["PROGNOSE"] = pd.to_numeric(df["PROGNOSE"], errors="coerce").fillna(0)
-    df["TAGEN"] = df["TAGEN"].round(0).astype(int)
-    df["PROGNOSE"] = df["PROGNOSE"].round(0).astype(int)
-    df["IPL_dt"] = pd.to_datetime(df["IPL"], errors="coerce")
+    display_df = df[
+        [
+            "IPL",
+            "TEAM",
+            "TAGEN",
+            "PROGNOSE",
+            "BaselineForecast",
+            "Abweichung",
+            "Anomaliesignal",
+            "GapSignal",
+            "ZeitBisKritisch",
+            "Risikostatus",
+        ]
+    ].copy()
 
-    df["residual"] = df["TAGEN"] - df["PROGNOSE"]
-    df["abs_residual"] = df["residual"].abs()
-
-    sigma_series = (
-        df["residual"]
-        .expanding(min_periods=2)
-        .std(ddof=0)
-        .replace(0, np.nan)
-        .fillna(1.0)
-    )
-
-    df["Anomaliesignal"] = (df["abs_residual"] / sigma_series).round(1)
-    df["GapRiskValue"] = np.clip(
-        (df["abs_residual"] / df["PROGNOSE"].replace(0, np.nan)).fillna(0),
-        0,
-        0.99,
-    )
-    df["GapSignal"] = (df["GapRiskValue"] * 100).round(0).astype(int).astype(str) + "%"
-    df["Abweichung"] = df["residual"].round(0).astype(int).map(lambda x: f"{x:+d}")
-
-    zeit_values = []
-    for i in range(len(df)):
-        hist = df.iloc[: i + 1].copy()
-        zeit_values.append(calculate_days_to_critical(hist))
-
-    df["ZeitBisKritisch"] = zeit_values
-    df["Risikostatus"] = df.apply(
-        lambda row: combined_risikostatus(
-            float(row["GapRiskValue"]),
-            float(row["Anomaliesignal"]),
-        ),
-        axis=1,
-    )
-
-    df["ZeitBisKritisch"] = np.where(df["Risikostatus"] == "Kritisch", "0-7", df["ZeitBisKritisch"])
-    return df
+    column_defs = [
+        {"headerName": "IPL", "field": "IPL", "minWidth": 150, "flex": 1},
+        {"headerName": "Team", "field": "TEAM", "minWidth": 140, "flex": 1},
+        {"headerName": "Tage", "field": "TAGEN", "minWidth": 120, "flex": 1},
+        {"headerName": "Prognose", "field": "PROGNOSE", "minWidth": 140, "flex": 1},
+        {"headerName": "Baseline Forecast", "field": "BaselineForecast", "minWidth": 160, "flex": 1},
+        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 140, "flex": 1},
+        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
+        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1, "cellStyle": percent_cell_style()},
+        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
+        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
+    ]
+    return display_df.to_dict("records"), column_defs
 
 
 # ============================================================
@@ -1503,29 +1455,6 @@ def survival_risk_grid_data():
     return display_df.to_dict("records"), column_defs
 
 
-def forecast_detail_grid_data(team_value: Optional[str]):
-    df = build_forecast_detail_df(team_value)
-    if df.empty:
-        return [], []
-
-    display_df = df[
-        ["IPL", "TEAM", "TAGEN", "PROGNOSE", "Abweichung", "Anomaliesignal", "GapSignal", "ZeitBisKritisch", "Risikostatus"]
-    ].copy()
-
-    column_defs = [
-        {"headerName": "IPL", "field": "IPL", "minWidth": 150, "flex": 1},
-        {"headerName": "Team", "field": "TEAM", "minWidth": 140, "flex": 1},
-        {"headerName": "Tage", "field": "TAGEN", "minWidth": 120, "flex": 1},
-        {"headerName": "Prognose", "field": "PROGNOSE", "minWidth": 140, "flex": 1},
-        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 140, "flex": 1},
-        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
-    ]
-    return display_df.to_dict("records"), column_defs
-
-
 # ============================================================
 # Monitoring KPIs / Alerts
 # ============================================================
@@ -1552,26 +1481,46 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
     if df_filtered.empty:
         return go.Figure()
 
-    df_local, x_col, x_title = parse_ipl_axis(df_filtered, "IPL")
+    df_local = df_filtered.copy()
+    df_local, x_col, x_title = parse_ipl_axis(df_local, "IPL")
+
     df_local["TAGEN"] = pd.to_numeric(df_local["TAGEN"], errors="coerce").fillna(0)
     df_local["PROGNOSE"] = pd.to_numeric(df_local["PROGNOSE"], errors="coerce").fillna(0)
 
+    series_cols = ["TAGEN", "PROGNOSE"]
+    if "baseline_forecast" in df_local.columns:
+        df_local["baseline_forecast"] = pd.to_numeric(df_local["baseline_forecast"], errors="coerce")
+        series_cols.append("baseline_forecast")
+
     df_long = df_local.melt(
         id_vars=[x_col],
-        value_vars=["TAGEN", "PROGNOSE"],
+        value_vars=series_cols,
         var_name="Serie",
         value_name="Wert",
     )
 
-    fig = px.line(df_long, x=x_col, y="Wert", color="Serie", markers=True, template="plotly_white")
+    fig = px.line(
+        df_long,
+        x=x_col,
+        y="Wert",
+        color="Serie",
+        markers=True,
+        template="plotly_white",
+    )
 
     for tr in fig.data:
         tr.line["width"] = 3
         tr.marker["size"] = 9
+
         if tr.name == "TAGEN":
             tr.line["dash"] = "solid"
+            tr.name = "Ist"
         elif tr.name == "PROGNOSE":
             tr.line["dash"] = "dash"
+            tr.name = "Forecast"
+        elif tr.name == "baseline_forecast":
+            tr.line["dash"] = "dot"
+            tr.name = "Baseline Forecast"
 
     fig.update_layout(
         font=dict(size=20),
@@ -2028,9 +1977,9 @@ def render_tab(tab):
         )
 
     if tab == "tab-forecast":
-        df_init = load_team_pg_by_team(str(DEFAULT_TEAM)) if DEFAULT_TEAM else pd.DataFrame()
+        df_init = prepare_forecast_team_dataset(str(DEFAULT_TEAM)) if DEFAULT_TEAM else pd.DataFrame()
         detail_rows, detail_cols = forecast_detail_grid_data(DEFAULT_TEAM)
-        forecast_kpis = get_forecast_team_kpis(DEFAULT_TEAM)
+        forecast_kpis = get_forecast_team_kpis(DEFAULT_TEAM, risk_df=build_team_risk_df())
 
         return html.Div(
             [
@@ -2041,12 +1990,13 @@ def render_tab(tab):
                             [
                                 kpi_card("Aktuelle Lücken-Tage", forecast_kpis["luecken"], value_id="forecast-kpi-luecken"),
                                 kpi_card("Forecast-Abweichung", forecast_kpis["abweichung"], value_id="forecast-kpi-abweichung"),
+                                kpi_card("Baseline Forecast", forecast_kpis["baseline"], value_id="forecast-kpi-baseline"),
                                 kpi_card("Maximales Risiko", forecast_kpis["max_risk"], value_id="forecast-kpi-max-risk"),
                             ],
                             style={
                                 "flex": "1",
                                 "display": "grid",
-                                "gridTemplateColumns": "repeat(3, minmax(180px, 1fr))",
+                                "gridTemplateColumns": "repeat(4, minmax(180px, 1fr))",
                                 "gap": "12px",
                                 "alignItems": "stretch",
                             },
@@ -2405,13 +2355,28 @@ def render_tab(tab):
 - Abweichungen zwischen Ist und Prognose früh erkennen
 - pro Zeile die operative Risikobewertung einordnen
 
-**Interpretation**
+**Baseline Forecast (Referenzmodell)**
+Zusätzlich wird ein einfacher Referenzwert berechnet, der die erwartete Entwicklung unter stabilen Bedingungen beschreibt.
+
+Der Baseline Forecast basiert typischerweise auf:
+- gleitendem Durchschnitt (Rolling Mean)
+- einfachen Trendannahmen
+
+Er dient als Vergleichsbasis für die Bewertung der Prognose.
+
+**Interpretation im Vergleich**
+- **TAGEN vs Baseline** → zeigt, ob eine Entwicklung ungewöhnlich ist
+- **TAGEN vs Prognose** → zeigt, ob die Prognose korrekt ist
+- **Prognose vs Baseline** → zeigt, ob das Modell eine Veränderung erwartet
+
+**Interpretation der Kennzahlen**
 - **Tage** = aktueller beobachteter Wert
 - **Prognose** = erwarteter Wert
+- **Baseline** = erwarteter Wert unter stabilen Bedingungen
 - **Abweichung** = Differenz zwischen Ist und Prognose
 - **Gap-Signal** = relative Stärke der Abweichung
 - **Zeit bis kritisch** = geschätzte Restzeit bis zu einem kritischen Zustand
-                            """
+"""
                         ),
                     ],
                     style=SECTION_STYLE,
@@ -2636,17 +2601,18 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
     Output("forecast-detail-grid", "columnDefs"),
     Output("forecast-kpi-luecken", "children"),
     Output("forecast-kpi-abweichung", "children"),
+    Output("forecast-kpi-baseline", "children"),
     Output("forecast-kpi-max-risk", "children"),
     Input("forecast-filter", "value"),
     Input("active-tab-store", "data"),
 )
 def update_forecast_graph(team_value, tab):
     if tab != "tab-forecast" or team_value is None:
-        return no_update, no_update, no_update, no_update, no_update, no_update
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
-    df_local = load_team_pg_by_team(str(team_value))
+    df_local = prepare_forecast_team_dataset(team_value)
     rows, cols = forecast_detail_grid_data(team_value)
-    kpis = get_forecast_team_kpis(team_value)
+    kpis = get_forecast_team_kpis(team_value, risk_df=build_team_risk_df())
 
     return (
         build_forecast_fig(df_local),
@@ -2654,6 +2620,7 @@ def update_forecast_graph(team_value, tab):
         cols,
         kpis["luecken"],
         kpis["abweichung"],
+        kpis["baseline"],
         kpis["max_risk"],
     )
 
