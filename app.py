@@ -41,6 +41,13 @@ from pack.services.monitoring_service import (
     get_monitoring_grid_data,
 )
 
+from pack.services.risk_service import (
+    build_team_risk_df,
+    build_survival_risk_df,
+    combined_risikostatus,
+    calculate_days_to_critical,
+)
+
 # ============================================================
 # Konstanten
 # ============================================================
@@ -719,102 +726,97 @@ except Exception:
 DEFAULT_TEAM = TEAM_VALUES[0] if TEAM_VALUES else None
 
 # ============================================================
-# Risiko-Logik
+# Forecast grids
 # ============================================================
-def combined_risikostatus(gap_risk_value: float, anomaly_signal: float) -> str:
-    if gap_risk_value >= 0.20 or anomaly_signal >= 3.0:
-        return "Kritisch"
-    if gap_risk_value >= 0.10 or anomaly_signal >= 1.5:
-        return "Beobachten"
-    return "Normal"
-
-
-def calculate_dynamic_critical_threshold(team_hist: pd.DataFrame) -> float:
-    df = team_hist.copy()
-    df["TAGEN"] = pd.to_numeric(df["TAGEN"], errors="coerce")
-    df["PROGNOSE"] = pd.to_numeric(df["PROGNOSE"], errors="coerce")
-    df = df.dropna(subset=["TAGEN"])
-
-    if df.empty:
-        return 999999.0
-
-    latest_row = df.sort_values("IPL_dt").tail(1)
-    current_forecast = (
-        float(latest_row["PROGNOSE"].fillna(0).iloc[0]) if "PROGNOSE" in latest_row.columns else 0.0
+def forecast_detail_grid_data(team_value: Optional[str]):
+    df = build_forecast_detail_df(
+        team_value=team_value,
+        calculate_days_to_critical_fn=calculate_days_to_critical,
+        combined_risikostatus_fn=combined_risikostatus,
     )
-    current_tagen = float(latest_row["TAGEN"].iloc[0])
+    if df.empty:
+        return [], []
 
-    hist_std = float(df["TAGEN"].std(ddof=0)) if len(df) > 1 else 0.0
-    hist_std = 0.0 if pd.isna(hist_std) else hist_std
+    display_df = df[
+        [
+            "IPL",
+            "TEAM",
+            "TAGEN",
+            "PROGNOSE",
+            "BaselineForecast",
+            "Abweichung",
+            "Anomaliesignal",
+            "GapSignal",
+            "ZeitBisKritisch",
+            "Risikostatus",
+        ]
+    ].copy()
 
-    candidate_1 = current_forecast * 1.15
-    candidate_2 = current_forecast + max(10.0, 1.5 * hist_std)
-    candidate_3 = current_tagen + max(10.0, hist_std)
-
-    return max(candidate_1, candidate_2, candidate_3, 25.0)
-
-
-def calculate_days_to_critical(team_hist: pd.DataFrame) -> str:
-    df = team_hist.copy()
-
-    if df.empty or "IPL_dt" not in df.columns or "TAGEN" not in df.columns:
-        return "30+"
-
-    df = df.dropna(subset=["IPL_dt"]).sort_values("IPL_dt").tail(6)
-    df["TAGEN"] = pd.to_numeric(df["TAGEN"], errors="coerce")
-    df["PROGNOSE"] = pd.to_numeric(df["PROGNOSE"], errors="coerce")
-    df = df.dropna(subset=["TAGEN"])
-
-    if len(df) < 2:
-        return "30+"
-
-    current_tagen = float(df["TAGEN"].iloc[-1])
-    critical_threshold = calculate_dynamic_critical_threshold(df)
-
-    if current_tagen >= critical_threshold:
-        return "jetzt"
-
-    df["days_num"] = (df["IPL_dt"] - df["IPL_dt"].min()).dt.days.astype(float)
-
-    if df["days_num"].nunique() < 2:
-        return "30+"
-
-    x = df["days_num"].values
-    y = df["TAGEN"].values.astype(float)
-
-    try:
-        slope, _ = np.polyfit(x, y, 1)
-    except Exception:
-        return "30+"
-
-    if pd.isna(slope) or np.isinf(slope) or slope <= 0:
-        return "30+"
-
-    remaining = critical_threshold - current_tagen
-    days_needed = remaining / slope
-
-    if pd.isna(days_needed) or np.isinf(days_needed):
-        return "30+"
-
-    if days_needed <= 0:
-        return "jetzt"
-
-    if days_needed > 30:
-        return "30+"
-
-    return str(int(np.ceil(days_needed)))
+    column_defs = [
+        {"headerName": "IPL", "field": "IPL", "minWidth": 150, "flex": 1},
+        {"headerName": "Team", "field": "TEAM", "minWidth": 140, "flex": 1},
+        {"headerName": "Tage", "field": "TAGEN", "minWidth": 120, "flex": 1},
+        {"headerName": "Prognose", "field": "PROGNOSE", "minWidth": 140, "flex": 1},
+        {"headerName": "Baseline Forecast", "field": "BaselineForecast", "minWidth": 160, "flex": 1},
+        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 140, "flex": 1},
+        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
+        {
+            "headerName": "Gap-Signal",
+            "field": "GapSignal",
+            "minWidth": 150,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
+        {
+            "headerName": "Risikostatus",
+            "field": "Risikostatus",
+            "minWidth": 140,
+            "flex": 1,
+            "cellStyle": risikostatus_cell_style(),
+        },
+    ]
+    return display_df.to_dict("records"), column_defs
 
 
 # ============================================================
-# Risiko DataFrames
+# Szenario / Maßnahmen
 # ============================================================
-def build_team_risk_df() -> pd.DataFrame:
-    df = load_team_pg_data()
-    if df.empty or df["IPL_dt"].dropna().empty:
+def _simulate_modified_latest_df(mode: str, intensity_pct: float) -> pd.DataFrame:
+    base_all = load_team_pg_data()
+    if base_all.empty or base_all["IPL_dt"].dropna().empty:
         return pd.DataFrame()
 
-    latest_dt = df["IPL_dt"].max()
-    latest = df[df["IPL_dt"] == latest_dt].copy()
+    latest = base_all[base_all["IPL_dt"] == base_all["IPL_dt"].max()].copy()
+    factor = intensity_pct / 100.0
+
+    if mode == "volume":
+        latest["TAGEN"] = latest["TAGEN"] * (1 + factor)
+    elif mode == "trend":
+        latest["TAGEN"] = latest["TAGEN"] + (latest["PROGNOSE"] * factor * 0.6)
+    elif mode == "volatility":
+        latest["TAGEN"] = latest["TAGEN"] + ((latest["TAGEN"] - latest["PROGNOSE"]) * factor)
+    elif mode == "reduce_gap":
+        latest["TAGEN"] = np.maximum(0, latest["TAGEN"] * (1 - factor))
+    elif mode == "stabilize":
+        latest["TAGEN"] = latest["PROGNOSE"] + (latest["TAGEN"] - latest["PROGNOSE"]) * (1 - factor)
+    elif mode == "forecast_shift":
+        latest["PROGNOSE"] = latest["PROGNOSE"] * (1 + factor)
+
+    latest["TAGEN"] = latest["TAGEN"].round(2)
+    latest["PROGNOSE"] = latest["PROGNOSE"].round(2)
+    return latest
+
+
+def build_simulated_team_risk_df(mode: str, intensity_pct: float) -> pd.DataFrame:
+    base_all = load_team_pg_data()
+    simulated_latest = _simulate_modified_latest_df(mode, intensity_pct)
+
+    if base_all.empty or simulated_latest.empty:
+        return pd.DataFrame()
+
+    latest_dt = base_all["IPL_dt"].max()
+    latest = simulated_latest.copy()
 
     latest["residual"] = latest["TAGEN"] - latest["PROGNOSE"]
     latest["abs_residual"] = latest["residual"].abs()
@@ -839,14 +841,23 @@ def build_team_risk_df() -> pd.DataFrame:
     latest["Aktuell"] = latest["TAGEN"].round(0).astype(int)
     latest["Abweichung"] = latest["residual"].round(0).astype(int).map(lambda x: f"{x:+d}")
 
-    all_hist = df.copy()
+    def team_days_to_critical_sim(team_name: str) -> str:
+        hist = base_all[base_all["TEAM"].astype(str) == str(team_name)].copy()
+        sim_row = latest[latest["TEAM"].astype(str) == str(team_name)].copy()
 
-    def team_days_to_critical(team_name: str) -> str:
-        team_hist = all_hist[all_hist["TEAM"].astype(str) == str(team_name)].copy()
-        return calculate_days_to_critical(team_hist)
+        if hist.empty or sim_row.empty:
+            return "30+"
 
-    latest["ZeitBisKritisch"] = latest["TEAM"].astype(str).apply(team_days_to_critical)
-    latest["ZeitBisKritisch"] = np.where(latest["Risikostatus"] == "Kritisch", "0-7", latest["ZeitBisKritisch"])
+        hist = hist[hist["IPL_dt"] != latest_dt].copy()
+        hist = pd.concat([hist, sim_row[hist.columns]], ignore_index=True)
+        return calculate_days_to_critical(hist)
+
+    latest["ZeitBisKritisch"] = latest["TEAM"].astype(str).apply(team_days_to_critical_sim)
+    latest["ZeitBisKritisch"] = np.where(
+        latest["Risikostatus"] == "Kritisch",
+        "0-7",
+        latest["ZeitBisKritisch"],
+    )
 
     out = latest[
         [
@@ -867,71 +878,304 @@ def build_team_risk_df() -> pd.DataFrame:
     return out
 
 
-def build_survival_risk_df() -> pd.DataFrame:
+def build_simulation_comparison_df(mode: str, intensity_pct: float) -> pd.DataFrame:
     base = build_team_risk_df()
-    if base.empty:
+    sim = build_simulated_team_risk_df(mode, intensity_pct)
+    if base.empty or sim.empty:
         return pd.DataFrame()
 
-    df = base.copy()
+    b = base[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
+    s = sim[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
 
-    gap_value = pd.to_numeric(df["GapRiskValue"], errors="coerce").fillna(0)
-    anomaly = pd.to_numeric(df["Anomaliesignal"], errors="coerce").fillna(0)
-    anomaly_norm = np.clip(anomaly / 5.0, 0, 1)
+    merged = b.merge(s, on="Team", suffixes=("_Baseline", "_Szenario"))
 
-    p30 = 0.65 * gap_value + 0.35 * anomaly_norm
-    p30 = np.clip(p30, 0, 0.99)
+    def pct_to_num(x):
+        try:
+            return float(str(x).replace("%", ""))
+        except Exception:
+            return np.nan
 
-    p90 = np.clip(p30 * 1.35, 0, 0.99)
+    merged["DeltaGapSignal"] = (
+        merged["GapSignal_Szenario"].map(pct_to_num) - merged["GapSignal_Baseline"].map(pct_to_num)
+    ).round(0)
 
-    df["P(Gap in 30 Tagen)_value"] = p30
-    df["P(Gap in 90 Tagen)_value"] = p90
+    merged["DeltaGapSignal"] = merged["DeltaGapSignal"].fillna(0).astype(int).map(lambda x: f"{x:+d} pp")
+    return merged.sort_values("Team").copy()
 
-    df["P(Gap in 30 Tagen)"] = (p30 * 100).round(0).astype(int).astype(str) + "%"
-    df["P(Gap in 90 Tagen)"] = (p90 * 100).round(0).astype(int).astype(str) + "%"
 
-    expected_days = []
-    for v30, v90, current_text in zip(p30, p90, df["ZeitBisKritisch"]):
-        if str(current_text) in ["jetzt", "0-7"]:
-            expected_days.append("0-7")
-            continue
+def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
+    base = build_team_risk_df()
+    sim = build_simulated_team_risk_df(mode, intensity_pct)
 
-        score = max(float(v30), float(v90) * 0.8)
+    fig = go.Figure()
+    if base.empty or sim.empty:
+        return fig
 
-        if score >= 0.70:
-            expected_days.append("0-7")
-        elif score >= 0.45:
-            expected_days.append("8-30")
-        else:
-            expected_days.append("30+")
-
-    df["Erwartete Zeit bis zum Gap"] = expected_days
-
-    out = df[
-        [
-            "Team",
-            "Erwartet",
-            "Aktuell",
-            "Abweichung",
-            "Anomaliesignal",
-            "P(Gap in 30 Tagen)_value",
-            "P(Gap in 30 Tagen)",
-            "P(Gap in 90 Tagen)_value",
-            "P(Gap in 90 Tagen)",
-            "Erwartete Zeit bis zum Gap",
-            "Risikostatus",
-        ]
-    ].copy()
-
-    out = out.sort_values(
-        ["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value", "Anomaliesignal"],
-        ascending=[False, False, False],
+    merged = base[["Team", "GapRiskValue"]].merge(
+        sim[["Team", "GapRiskValue"]], on="Team", suffixes=("_Baseline", "_Simulation")
     )
-    return out
+    merged = merged.sort_values("GapRiskValue_Simulation", ascending=False).head(12)
+
+    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Baseline"] * 100, name="Ausgangslage"))
+    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Simulation"] * 100, name="Simulation"))
+
+    fig.update_layout(
+        barmode="group",
+        template="plotly_white",
+        height=520,
+        font=dict(size=18),
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        margin=dict(t=20, b=80, l=80, r=50),
+        legend_title_text="",
+    )
+    fig.update_yaxes(title_text=title, title_font=dict(size=22), tickfont=dict(size=18))
+    fig.update_xaxes(title_text="Team", title_font=dict(size=22), tickfont=dict(size=16))
+    return fig
+
+
+def simulation_summary_kpis(sim_df: pd.DataFrame) -> dict:
+    if sim_df.empty:
+        return {"max_risk": "—", "kritisch": "—", "beobachten": "—", "avg_signal": "—"}
+
+    max_risk = f"{int(np.round(sim_df['GapRiskValue'].max() * 100, 0))}%"
+    kritisch = str(int((sim_df["Risikostatus"] == "Kritisch").sum()))
+    beobachten = str(int((sim_df["Risikostatus"] == "Beobachten").sum()))
+    avg_signal = f"{int(np.round(sim_df['GapRiskValue'].mean() * 100, 0))}%"
+
+    return {
+        "max_risk": max_risk,
+        "kritisch": kritisch,
+        "beobachten": beobachten,
+        "avg_signal": avg_signal,
+    }
+
+
+def scenario_grid_data(mode: str, intensity_pct: float):
+    sim = build_simulated_team_risk_df(mode, intensity_pct)
+    if sim.empty:
+        return [], []
+
+    display_df = sim.drop(columns=["GapRiskValue"]).copy()
+
+    column_defs = [
+        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
+        {"headerName": "Erwartet", "field": "Erwartet", "minWidth": 120, "flex": 1},
+        {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
+        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
+        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
+        {
+            "headerName": "Gap-Signal",
+            "field": "GapSignal",
+            "minWidth": 150,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
+        {
+            "headerName": "Risikostatus",
+            "field": "Risikostatus",
+            "minWidth": 140,
+            "flex": 1,
+            "cellStyle": risikostatus_cell_style(),
+        },
+    ]
+    return display_df.to_dict("records"), column_defs
+
+
+def comparison_grid_data(mode: str, intensity_pct: float):
+    comp = build_simulation_comparison_df(mode, intensity_pct)
+    if comp.empty:
+        return [], []
+
+    column_defs = [
+        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
+        {
+            "headerName": "Gap-Signal Ausgangslage",
+            "field": "GapSignal_Baseline",
+            "minWidth": 180,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {
+            "headerName": "Gap-Signal Simulation",
+            "field": "GapSignal_Szenario",
+            "minWidth": 180,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {"headerName": "Delta Gap-Signal", "field": "DeltaGapSignal", "minWidth": 140, "flex": 1},
+        {
+            "headerName": "Status Ausgangslage",
+            "field": "Risikostatus_Baseline",
+            "minWidth": 170,
+            "flex": 1,
+            "cellStyle": risikostatus_cell_style(),
+        },
+        {
+            "headerName": "Status Simulation",
+            "field": "Risikostatus_Szenario",
+            "minWidth": 170,
+            "flex": 1,
+            "cellStyle": risikostatus_cell_style(),
+        },
+        {"headerName": "Zeit Ausgangslage", "field": "ZeitBisKritisch_Baseline", "minWidth": 160, "flex": 1},
+        {"headerName": "Zeit Simulation", "field": "ZeitBisKritisch_Szenario", "minWidth": 160, "flex": 1},
+    ]
+    return comp.to_dict("records"), column_defs
 
 
 # ============================================================
-# Risiko Charts
+# Grids
 # ============================================================
+def survival_risk_grid_data():
+    out = build_survival_risk_df()
+    if out.empty:
+        return [], []
+
+    display_df = out.drop(columns=["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value"]).copy()
+
+    column_defs = [
+        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
+        {"headerName": "Erwartet", "field": "Erwartet", "minWidth": 120, "flex": 1},
+        {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
+        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
+        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
+        {
+            "headerName": "P(Gap in 30 Tagen)",
+            "field": "P(Gap in 30 Tagen)",
+            "minWidth": 170,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {
+            "headerName": "P(Gap in 90 Tagen)",
+            "field": "P(Gap in 90 Tagen)",
+            "minWidth": 170,
+            "flex": 1,
+            "cellStyle": percent_cell_style(),
+        },
+        {"headerName": "Erwartete Zeit bis zum Gap", "field": "Erwartete Zeit bis zum Gap", "minWidth": 180, "flex": 1},
+        {
+            "headerName": "Risikostatus",
+            "field": "Risikostatus",
+            "minWidth": 140,
+            "flex": 1,
+            "cellStyle": risikostatus_cell_style(),
+        },
+    ]
+    return display_df.to_dict("records"), column_defs
+
+
+# ============================================================
+# Charts
+# ============================================================
+def build_forecast_fig(df_filtered: pd.DataFrame):
+    if df_filtered.empty:
+        return go.Figure()
+
+    df_local = df_filtered.copy()
+    df_local, x_col, x_title = parse_ipl_axis(df_local, "IPL")
+
+    df_local["TAGEN"] = pd.to_numeric(df_local["TAGEN"], errors="coerce").fillna(0)
+    df_local["PROGNOSE"] = pd.to_numeric(df_local["PROGNOSE"], errors="coerce").fillna(0)
+
+    series_cols = ["TAGEN", "PROGNOSE"]
+    if "baseline_forecast" in df_local.columns:
+        df_local["baseline_forecast"] = pd.to_numeric(df_local["baseline_forecast"], errors="coerce")
+        series_cols.append("baseline_forecast")
+
+    df_long = df_local.melt(
+        id_vars=[x_col],
+        value_vars=series_cols,
+        var_name="Serie",
+        value_name="Wert",
+    )
+
+    fig = px.line(
+        df_long,
+        x=x_col,
+        y="Wert",
+        color="Serie",
+        markers=True,
+        template="plotly_white",
+    )
+
+    for tr in fig.data:
+        tr.line["width"] = 3
+        tr.marker["size"] = 9
+
+        if tr.name == "TAGEN":
+            tr.line["dash"] = "solid"
+            tr.name = "Ist"
+        elif tr.name == "PROGNOSE":
+            tr.line["dash"] = "dash"
+            tr.name = "Forecast"
+        elif tr.name == "baseline_forecast":
+            tr.line["dash"] = "dot"
+            tr.name = "Baseline Forecast"
+
+    fig.update_layout(
+        font=dict(size=20),
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        margin=dict(t=20, b=60, l=80, r=50),
+        height=520,
+        legend_title_text="",
+    )
+    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
+    fig.update_xaxes(title_text=x_title, title_font=dict(size=26), tickfont=dict(size=22))
+    return fig
+
+
+def build_monitoring_main_fig():
+    df = load_team_pg_data()
+    if df.empty:
+        return go.Figure()
+
+    if df["IPL_dt"].notna().any():
+        plot_df = df.groupby("IPL_dt", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL_dt")
+        x = plot_df["IPL_dt"]
+    else:
+        plot_df = df.groupby("IPL", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL")
+        x = plot_df["IPL"]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=plot_df["TAGEN"],
+            mode="lines+markers",
+            name="Ist",
+            line=dict(width=3),
+            marker=dict(size=8),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=plot_df["PROGNOSE"],
+            mode="lines+markers",
+            name="Forecast",
+            line=dict(width=3, dash="dash"),
+            marker=dict(size=8),
+        )
+    )
+
+    fig.update_layout(
+        template="plotly_white",
+        height=520,
+        font=dict(size=20),
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        margin=dict(t=20, b=60, l=80, r=50),
+        legend_title_text="",
+    )
+    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
+    fig.update_xaxes(title_text="IPL", title_font=dict(size=26), tickfont=dict(size=22))
+    return fig
+
+
 def build_survival_scatter_90_fig():
     df = build_survival_risk_df()
     if df.empty:
@@ -1050,11 +1294,7 @@ def build_expected_time_gap_fig():
         tickfont=dict(size=14),
         range=[0, 35],
     )
-    fig.update_yaxes(
-        title_text="",
-        tickfont=dict(size=14),
-    )
-
+    fig.update_yaxes(title_text="", tickfont=dict(size=14))
     return fig
 
 
@@ -1151,369 +1391,6 @@ def build_survival_scatter_fig():
     )
     fig.update_yaxes(title_text="P(Gap in 30 Tagen) %", title_font=dict(size=20), tickfont=dict(size=14))
     fig.update_xaxes(title_text="Anomaliesignal", title_font=dict(size=20), tickfont=dict(size=14))
-    return fig
-
-
-# ============================================================
-# Forecast grids
-# ============================================================
-def forecast_detail_grid_data(team_value: Optional[str]):
-    df = build_forecast_detail_df(
-        team_value=team_value,
-        calculate_days_to_critical_fn=calculate_days_to_critical,
-        combined_risikostatus_fn=combined_risikostatus,
-    )
-    if df.empty:
-        return [], []
-
-    display_df = df[
-        [
-            "IPL",
-            "TEAM",
-            "TAGEN",
-            "PROGNOSE",
-            "BaselineForecast",
-            "Abweichung",
-            "Anomaliesignal",
-            "GapSignal",
-            "ZeitBisKritisch",
-            "Risikostatus",
-        ]
-    ].copy()
-
-    column_defs = [
-        {"headerName": "IPL", "field": "IPL", "minWidth": 150, "flex": 1},
-        {"headerName": "Team", "field": "TEAM", "minWidth": 140, "flex": 1},
-        {"headerName": "Tage", "field": "TAGEN", "minWidth": 120, "flex": 1},
-        {"headerName": "Prognose", "field": "PROGNOSE", "minWidth": 140, "flex": 1},
-        {"headerName": "Baseline Forecast", "field": "BaselineForecast", "minWidth": 160, "flex": 1},
-        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 140, "flex": 1},
-        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
-    ]
-    return display_df.to_dict("records"), column_defs
-
-
-# ============================================================
-# Szenario / Maßnahmen
-# ============================================================
-def _simulate_modified_latest_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base_all = load_team_pg_data()
-    if base_all.empty or base_all["IPL_dt"].dropna().empty:
-        return pd.DataFrame()
-
-    latest = base_all[base_all["IPL_dt"] == base_all["IPL_dt"].max()].copy()
-    factor = intensity_pct / 100.0
-
-    if mode == "volume":
-        latest["TAGEN"] = latest["TAGEN"] * (1 + factor)
-    elif mode == "trend":
-        latest["TAGEN"] = latest["TAGEN"] + (latest["PROGNOSE"] * factor * 0.6)
-    elif mode == "volatility":
-        latest["TAGEN"] = latest["TAGEN"] + ((latest["TAGEN"] - latest["PROGNOSE"]) * factor)
-    elif mode == "reduce_gap":
-        latest["TAGEN"] = np.maximum(0, latest["TAGEN"] * (1 - factor))
-    elif mode == "stabilize":
-        latest["TAGEN"] = latest["PROGNOSE"] + (latest["TAGEN"] - latest["PROGNOSE"]) * (1 - factor)
-    elif mode == "forecast_shift":
-        latest["PROGNOSE"] = latest["PROGNOSE"] * (1 + factor)
-
-    latest["TAGEN"] = latest["TAGEN"].round(2)
-    latest["PROGNOSE"] = latest["PROGNOSE"].round(2)
-    return latest
-
-
-def build_simulated_team_risk_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base_all = load_team_pg_data()
-    simulated_latest = _simulate_modified_latest_df(mode, intensity_pct)
-
-    if base_all.empty or simulated_latest.empty:
-        return pd.DataFrame()
-
-    latest_dt = base_all["IPL_dt"].max()
-    latest = simulated_latest.copy()
-
-    latest["residual"] = latest["TAGEN"] - latest["PROGNOSE"]
-    latest["abs_residual"] = latest["residual"].abs()
-
-    sigma = latest["residual"].std(ddof=0)
-    sigma = sigma if pd.notna(sigma) and sigma > 0 else 1.0
-
-    latest["Anomaliesignal"] = (latest["abs_residual"] / sigma).round(1)
-    latest["GapRiskValue"] = np.clip(
-        (latest["abs_residual"] / latest["PROGNOSE"].replace(0, np.nan)).fillna(0),
-        0,
-        0.99,
-    )
-    latest["GapSignal"] = (latest["GapRiskValue"] * 100).round(0).astype(int).astype(str) + "%"
-
-    latest["Risikostatus"] = latest.apply(
-        lambda row: combined_risikostatus(float(row["GapRiskValue"]), float(row["Anomaliesignal"])),
-        axis=1,
-    )
-
-    latest["Erwartet"] = latest["PROGNOSE"].round(0).astype(int)
-    latest["Aktuell"] = latest["TAGEN"].round(0).astype(int)
-    latest["Abweichung"] = latest["residual"].round(0).astype(int).map(lambda x: f"{x:+d}")
-
-    def team_days_to_critical_sim(team_name: str) -> str:
-        hist = base_all[base_all["TEAM"].astype(str) == str(team_name)].copy()
-        sim_row = latest[latest["TEAM"].astype(str) == str(team_name)].copy()
-
-        if hist.empty or sim_row.empty:
-            return "30+"
-
-        hist = hist[hist["IPL_dt"] != latest_dt].copy()
-        hist = pd.concat([hist, sim_row[hist.columns]], ignore_index=True)
-        return calculate_days_to_critical(hist)
-
-    latest["ZeitBisKritisch"] = latest["TEAM"].astype(str).apply(team_days_to_critical_sim)
-    latest["ZeitBisKritisch"] = np.where(latest["Risikostatus"] == "Kritisch", "0-7", latest["ZeitBisKritisch"])
-
-    out = latest[
-        [
-            "TEAM",
-            "Erwartet",
-            "Aktuell",
-            "Abweichung",
-            "Anomaliesignal",
-            "GapRiskValue",
-            "GapSignal",
-            "ZeitBisKritisch",
-            "Risikostatus",
-        ]
-    ].copy()
-
-    out = out.rename(columns={"TEAM": "Team"})
-    out = out.sort_values(["GapRiskValue", "Anomaliesignal"], ascending=[False, False])
-    return out
-
-
-def build_simulation_comparison_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base = build_team_risk_df()
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
-    if base.empty or sim.empty:
-        return pd.DataFrame()
-
-    b = base[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
-    s = sim[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
-
-    merged = b.merge(s, on="Team", suffixes=("_Baseline", "_Szenario"))
-
-    def pct_to_num(x):
-        try:
-            return float(str(x).replace("%", ""))
-        except Exception:
-            return np.nan
-
-    merged["DeltaGapSignal"] = (
-        merged["GapSignal_Szenario"].map(pct_to_num) - merged["GapSignal_Baseline"].map(pct_to_num)
-    ).round(0)
-
-    merged["DeltaGapSignal"] = merged["DeltaGapSignal"].fillna(0).astype(int).map(lambda x: f"{x:+d} pp")
-    return merged.sort_values("Team").copy()
-
-
-def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
-    base = build_team_risk_df()
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
-
-    fig = go.Figure()
-    if base.empty or sim.empty:
-        return fig
-
-    merged = base[["Team", "GapRiskValue"]].merge(
-        sim[["Team", "GapRiskValue"]], on="Team", suffixes=("_Baseline", "_Simulation")
-    )
-    merged = merged.sort_values("GapRiskValue_Simulation", ascending=False).head(12)
-
-    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Baseline"] * 100, name="Ausgangslage"))
-    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Simulation"] * 100, name="Simulation"))
-
-    fig.update_layout(
-        barmode="group",
-        template="plotly_white",
-        height=520,
-        font=dict(size=18),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=80, l=80, r=50),
-        legend_title_text="",
-    )
-    fig.update_yaxes(title_text=title, title_font=dict(size=22), tickfont=dict(size=18))
-    fig.update_xaxes(title_text="Team", title_font=dict(size=22), tickfont=dict(size=16))
-    return fig
-
-
-def simulation_summary_kpis(sim_df: pd.DataFrame) -> dict:
-    if sim_df.empty:
-        return {"max_risk": "—", "kritisch": "—", "beobachten": "—", "avg_signal": "—"}
-
-    max_risk = f"{int(np.round(sim_df['GapRiskValue'].max() * 100, 0))}%"
-    kritisch = str(int((sim_df["Risikostatus"] == "Kritisch").sum()))
-    beobachten = str(int((sim_df["Risikostatus"] == "Beobachten").sum()))
-    avg_signal = f"{int(np.round(sim_df['GapRiskValue'].mean() * 100, 0))}%"
-
-    return {
-        "max_risk": max_risk,
-        "kritisch": kritisch,
-        "beobachten": beobachten,
-        "avg_signal": avg_signal,
-    }
-
-
-def scenario_grid_data(mode: str, intensity_pct: float):
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
-    if sim.empty:
-        return [], []
-
-    display_df = sim.drop(columns=["GapRiskValue"]).copy()
-
-    column_defs = [
-        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
-        {"headerName": "Erwartet", "field": "Erwartet", "minWidth": 120, "flex": 1},
-        {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
-        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
-        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
-    ]
-    return display_df.to_dict("records"), column_defs
-
-
-def comparison_grid_data(mode: str, intensity_pct: float):
-    comp = build_simulation_comparison_df(mode, intensity_pct)
-    if comp.empty:
-        return [], []
-
-    column_defs = [
-        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
-        {"headerName": "Gap-Signal Ausgangslage", "field": "GapSignal_Baseline", "minWidth": 180, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Gap-Signal Simulation", "field": "GapSignal_Szenario", "minWidth": 180, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Delta Gap-Signal", "field": "DeltaGapSignal", "minWidth": 140, "flex": 1},
-        {"headerName": "Status Ausgangslage", "field": "Risikostatus_Baseline", "minWidth": 170, "flex": 1, "cellStyle": risikostatus_cell_style()},
-        {"headerName": "Status Simulation", "field": "Risikostatus_Szenario", "minWidth": 170, "flex": 1, "cellStyle": risikostatus_cell_style()},
-        {"headerName": "Zeit Ausgangslage", "field": "ZeitBisKritisch_Baseline", "minWidth": 160, "flex": 1},
-        {"headerName": "Zeit Simulation", "field": "ZeitBisKritisch_Szenario", "minWidth": 160, "flex": 1},
-    ]
-    return comp.to_dict("records"), column_defs
-
-
-# ============================================================
-# Grids
-# ============================================================
-def survival_risk_grid_data():
-    out = build_survival_risk_df()
-    if out.empty:
-        return [], []
-
-    display_df = out.drop(columns=["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value"]).copy()
-
-    column_defs = [
-        {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
-        {"headerName": "Erwartet", "field": "Erwartet", "minWidth": 120, "flex": 1},
-        {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
-        {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
-        {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {"headerName": "P(Gap in 30 Tagen)", "field": "P(Gap in 30 Tagen)", "minWidth": 170, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "P(Gap in 90 Tagen)", "field": "P(Gap in 90 Tagen)", "minWidth": 170, "flex": 1, "cellStyle": percent_cell_style()},
-        {"headerName": "Erwartete Zeit bis zum Gap", "field": "Erwartete Zeit bis zum Gap", "minWidth": 180, "flex": 1},
-        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1, "cellStyle": risikostatus_cell_style()},
-    ]
-    return display_df.to_dict("records"), column_defs
-
-
-# ============================================================
-# Charts
-# ============================================================
-def build_forecast_fig(df_filtered: pd.DataFrame):
-    if df_filtered.empty:
-        return go.Figure()
-
-    df_local = df_filtered.copy()
-    df_local, x_col, x_title = parse_ipl_axis(df_local, "IPL")
-
-    df_local["TAGEN"] = pd.to_numeric(df_local["TAGEN"], errors="coerce").fillna(0)
-    df_local["PROGNOSE"] = pd.to_numeric(df_local["PROGNOSE"], errors="coerce").fillna(0)
-
-    series_cols = ["TAGEN", "PROGNOSE"]
-    if "baseline_forecast" in df_local.columns:
-        df_local["baseline_forecast"] = pd.to_numeric(df_local["baseline_forecast"], errors="coerce")
-        series_cols.append("baseline_forecast")
-
-    df_long = df_local.melt(
-        id_vars=[x_col],
-        value_vars=series_cols,
-        var_name="Serie",
-        value_name="Wert",
-    )
-
-    fig = px.line(
-        df_long,
-        x=x_col,
-        y="Wert",
-        color="Serie",
-        markers=True,
-        template="plotly_white",
-    )
-
-    for tr in fig.data:
-        tr.line["width"] = 3
-        tr.marker["size"] = 9
-
-        if tr.name == "TAGEN":
-            tr.line["dash"] = "solid"
-            tr.name = "Ist"
-        elif tr.name == "PROGNOSE":
-            tr.line["dash"] = "dash"
-            tr.name = "Forecast"
-        elif tr.name == "baseline_forecast":
-            tr.line["dash"] = "dot"
-            tr.name = "Baseline Forecast"
-
-    fig.update_layout(
-        font=dict(size=20),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=60, l=80, r=50),
-        height=520,
-        legend_title_text="",
-    )
-    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
-    fig.update_xaxes(title_text=x_title, title_font=dict(size=26), tickfont=dict(size=22))
-    return fig
-
-
-def build_monitoring_main_fig():
-    df = load_team_pg_data()
-    if df.empty:
-        return go.Figure()
-
-    if df["IPL_dt"].notna().any():
-        plot_df = df.groupby("IPL_dt", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL_dt")
-        x = plot_df["IPL_dt"]
-    else:
-        plot_df = df.groupby("IPL", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL")
-        x = plot_df["IPL"]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x, y=plot_df["TAGEN"], mode="lines+markers", name="Ist", line=dict(width=3), marker=dict(size=8)))
-    fig.add_trace(go.Scatter(x=x, y=plot_df["PROGNOSE"], mode="lines+markers", name="Forecast", line=dict(width=3, dash="dash"), marker=dict(size=8)))
-
-    fig.update_layout(
-        template="plotly_white",
-        height=520,
-        font=dict(size=20),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=60, l=80, r=50),
-        legend_title_text="",
-    )
-    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
-    fig.update_xaxes(title_text="IPL", title_font=dict(size=26), tickfont=dict(size=22))
     return fig
 
 
@@ -1635,7 +1512,13 @@ def anomaly_figure(df_base: pd.DataFrame, window: int = 8, sensitivity: float = 
 
     if not anom.empty:
         anom["dir"] = np.where(anom["dev_signed"] >= 0, "↑", "↓")
-        customdata = np.column_stack((anom["abs_dev"].round(2).values, anom["dir"].astype(str).values, anom["x"].astype(str).values))
+        customdata = np.column_stack(
+            (
+                anom["abs_dev"].round(2).values,
+                anom["dir"].astype(str).values,
+                anom["x"].astype(str).values,
+            )
+        )
 
         fig.add_trace(
             go.Scatter(
@@ -1655,7 +1538,16 @@ def anomaly_figure(df_base: pd.DataFrame, window: int = 8, sensitivity: float = 
             )
         )
     else:
-        fig.add_trace(go.Scatter(x=[], y=[], mode="markers", name="Warnsignal", marker=dict(size=11, symbol="circle"), hoverinfo="skip"))
+        fig.add_trace(
+            go.Scatter(
+                x=[],
+                y=[],
+                mode="markers",
+                name="Warnsignal",
+                marker=dict(size=11, symbol="circle"),
+                hoverinfo="skip",
+            )
+        )
 
     fig.update_layout(
         template="plotly_white",
@@ -2379,7 +2271,7 @@ Die fachliche Logik folgt der analytischen Kette:
 - **P(Gap in 30 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 30 Tagen
 - **P(Gap in 90 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 90 Tagen
 - **Erwartete Zeit bis zum Gap** = erwarteter Zeitraum bis zum nächsten kritischen Ereignis.
-                           Wahrscheinlichster Zeitraum bis zum Eintritt eines Gap-Ereignisses unter Berücksichtigung der aktuellen Risikosignale
+  Wahrscheinlichster Zeitraum bis zum Eintritt eines Gap-Ereignisses unter Berücksichtigung der aktuellen Risikosignale
                             """
                         ),
                     ],
