@@ -44,6 +44,9 @@ from pack.services.monitoring_service import (
 from pack.services.risk_service import (
     build_team_risk_df,
     build_survival_risk_df,
+)
+
+from pack.risk.core import (
     combined_risikostatus,
     calculate_days_to_critical,
 )
@@ -1055,7 +1058,12 @@ def survival_risk_grid_data():
             "flex": 1,
             "cellStyle": percent_cell_style(),
         },
-        {"headerName": "Erwartete Zeit bis zum Gap", "field": "Erwartete Zeit bis zum Gap", "minWidth": 180, "flex": 1},
+        {
+            "headerName": "Erwartete Zeit bis zum Gap",
+            "field": "Erwartete Zeit bis zum Gap",
+            "minWidth": 180,
+            "flex": 1,
+        },
         {
             "headerName": "Risikostatus",
             "field": "Risikostatus",
@@ -1867,7 +1875,10 @@ def render_tab(tab):
                 html.Div(
                     [
                         section_title("Erwartete Entwicklung je Team"),
-                        html.Div(dcc.Graph(id="graph-forecast", figure=build_forecast_fig(df_init)), style=CHART_CARD_STYLE),
+                        html.Div(
+                            dcc.Graph(id="graph-forecast", figure=build_forecast_fig(df_init)),
+                            style=CHART_CARD_STYLE,
+                        ),
                     ],
                     style=SECTION_STYLE,
                 ),
