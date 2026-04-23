@@ -4,7 +4,6 @@ import subprocess
 import threading
 import sys
 import time
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -13,20 +12,18 @@ import dash_ag_grid as dag
 from dash import Dash, html, dcc, Input, Output, State, no_update, ALL, ctx
 
 from pack.config import (
-    TABLE_ANOM,
-    ANOMALY_SENSITIVITY_MAP,
     APP_TITLE,
     DEFAULT_REFRESH_INTERVAL_MS,
 )
-
 from pack.data_access import (
     duck_query_df,
     load_team_pg_data,
-    load_anomaly_data,
     get_raw_bestand_top10_by_ipl,
     get_team_values,
     get_latest_ipl_value,
 )
+
+from pack.services.anomaly_service import get_anomaly_results
 
 from pack.services.forecast_service import (
     prepare_forecast_team_dataset,
@@ -40,7 +37,11 @@ from pack.services.monitoring_service import (
     get_monitoring_stand_text,
     get_monitoring_grid_data,
 )
-
+from pack.services.simulation_service import (
+    build_simulated_team_risk_df,
+    build_simulation_comparison_df,
+    simulation_summary_kpis,
+)
 from pack.services.risk_service import (
     build_team_risk_df,
     build_survival_risk_df,
@@ -50,7 +51,6 @@ from pack.risk.core import (
     combined_risikostatus,
     calculate_days_to_critical,
 )
-
 # ============================================================
 # Konstanten
 # ============================================================
@@ -449,9 +449,6 @@ def fmt_date(v):
         return str(v)
 
 
-def map_sensitivity(level: int) -> float:
-    return ANOMALY_SENSITIVITY_MAP.get(level, 3.0)
-
 
 # ============================================================
 # UI Helper
@@ -785,126 +782,6 @@ def forecast_detail_grid_data(team_value: Optional[str]):
 # ============================================================
 # Szenario / Maßnahmen
 # ============================================================
-def _simulate_modified_latest_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base_all = load_team_pg_data()
-    if base_all.empty or base_all["IPL_dt"].dropna().empty:
-        return pd.DataFrame()
-
-    latest = base_all[base_all["IPL_dt"] == base_all["IPL_dt"].max()].copy()
-    factor = intensity_pct / 100.0
-
-    if mode == "volume":
-        latest["TAGEN"] = latest["TAGEN"] * (1 + factor)
-    elif mode == "trend":
-        latest["TAGEN"] = latest["TAGEN"] + (latest["PROGNOSE"] * factor * 0.6)
-    elif mode == "volatility":
-        latest["TAGEN"] = latest["TAGEN"] + ((latest["TAGEN"] - latest["PROGNOSE"]) * factor)
-    elif mode == "reduce_gap":
-        latest["TAGEN"] = np.maximum(0, latest["TAGEN"] * (1 - factor))
-    elif mode == "stabilize":
-        latest["TAGEN"] = latest["PROGNOSE"] + (latest["TAGEN"] - latest["PROGNOSE"]) * (1 - factor)
-    elif mode == "forecast_shift":
-        latest["PROGNOSE"] = latest["PROGNOSE"] * (1 + factor)
-
-    latest["TAGEN"] = latest["TAGEN"].round(2)
-    latest["PROGNOSE"] = latest["PROGNOSE"].round(2)
-    return latest
-
-
-def build_simulated_team_risk_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base_all = load_team_pg_data()
-    simulated_latest = _simulate_modified_latest_df(mode, intensity_pct)
-
-    if base_all.empty or simulated_latest.empty:
-        return pd.DataFrame()
-
-    latest_dt = base_all["IPL_dt"].max()
-    latest = simulated_latest.copy()
-
-    latest["residual"] = latest["TAGEN"] - latest["PROGNOSE"]
-    latest["abs_residual"] = latest["residual"].abs()
-
-    sigma = latest["residual"].std(ddof=0)
-    sigma = sigma if pd.notna(sigma) and sigma > 0 else 1.0
-
-    latest["Anomaliesignal"] = (latest["abs_residual"] / sigma).round(1)
-    latest["GapRiskValue"] = np.clip(
-        (latest["abs_residual"] / latest["PROGNOSE"].replace(0, np.nan)).fillna(0),
-        0,
-        0.99,
-    )
-    latest["GapSignal"] = (latest["GapRiskValue"] * 100).round(0).astype(int).astype(str) + "%"
-
-    latest["Risikostatus"] = latest.apply(
-        lambda row: combined_risikostatus(float(row["GapRiskValue"]), float(row["Anomaliesignal"])),
-        axis=1,
-    )
-
-    latest["Erwartet"] = latest["PROGNOSE"].round(0).astype(int)
-    latest["Aktuell"] = latest["TAGEN"].round(0).astype(int)
-    latest["Abweichung"] = latest["residual"].round(0).astype(int).map(lambda x: f"{x:+d}")
-
-    def team_days_to_critical_sim(team_name: str) -> str:
-        hist = base_all[base_all["TEAM"].astype(str) == str(team_name)].copy()
-        sim_row = latest[latest["TEAM"].astype(str) == str(team_name)].copy()
-
-        if hist.empty or sim_row.empty:
-            return "30+"
-
-        hist = hist[hist["IPL_dt"] != latest_dt].copy()
-        hist = pd.concat([hist, sim_row[hist.columns]], ignore_index=True)
-        return calculate_days_to_critical(hist)
-
-    latest["ZeitBisKritisch"] = latest["TEAM"].astype(str).apply(team_days_to_critical_sim)
-    latest["ZeitBisKritisch"] = np.where(
-        latest["Risikostatus"] == "Kritisch",
-        "0-7",
-        latest["ZeitBisKritisch"],
-    )
-
-    out = latest[
-        [
-            "TEAM",
-            "Erwartet",
-            "Aktuell",
-            "Abweichung",
-            "Anomaliesignal",
-            "GapRiskValue",
-            "GapSignal",
-            "ZeitBisKritisch",
-            "Risikostatus",
-        ]
-    ].copy()
-
-    out = out.rename(columns={"TEAM": "Team"})
-    out = out.sort_values(["GapRiskValue", "Anomaliesignal"], ascending=[False, False])
-    return out
-
-
-def build_simulation_comparison_df(mode: str, intensity_pct: float) -> pd.DataFrame:
-    base = build_team_risk_df()
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
-    if base.empty or sim.empty:
-        return pd.DataFrame()
-
-    b = base[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
-    s = sim[["Team", "GapSignal", "Risikostatus", "ZeitBisKritisch"]].copy()
-
-    merged = b.merge(s, on="Team", suffixes=("_Baseline", "_Szenario"))
-
-    def pct_to_num(x):
-        try:
-            return float(str(x).replace("%", ""))
-        except Exception:
-            return np.nan
-
-    merged["DeltaGapSignal"] = (
-        merged["GapSignal_Szenario"].map(pct_to_num) - merged["GapSignal_Baseline"].map(pct_to_num)
-    ).round(0)
-
-    merged["DeltaGapSignal"] = merged["DeltaGapSignal"].fillna(0).astype(int).map(lambda x: f"{x:+d} pp")
-    return merged.sort_values("Team").copy()
-
 
 def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
     base = build_team_risk_df()
@@ -937,21 +814,6 @@ def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Fi
     return fig
 
 
-def simulation_summary_kpis(sim_df: pd.DataFrame) -> dict:
-    if sim_df.empty:
-        return {"max_risk": "—", "kritisch": "—", "beobachten": "—", "avg_signal": "—"}
-
-    max_risk = f"{int(np.round(sim_df['GapRiskValue'].max() * 100, 0))}%"
-    kritisch = str(int((sim_df["Risikostatus"] == "Kritisch").sum()))
-    beobachten = str(int((sim_df["Risikostatus"] == "Beobachten").sum()))
-    avg_signal = f"{int(np.round(sim_df['GapRiskValue'].mean() * 100, 0))}%"
-
-    return {
-        "max_risk": max_risk,
-        "kritisch": kritisch,
-        "beobachten": beobachten,
-        "avg_signal": avg_signal,
-    }
 
 
 def scenario_grid_data(mode: str, intensity_pct: float):
@@ -1402,181 +1264,6 @@ def build_survival_scatter_fig():
     return fig
 
 
-# ============================================================
-# Anomalie
-# ============================================================
-def prepare_anomaly_series(df: pd.DataFrame) -> pd.DataFrame:
-    data = df.copy()
-
-    if data.empty:
-        data = pd.DataFrame(columns=["IPL", "TAGEN"])
-
-    if "IPL" not in data.columns or "TAGEN" not in data.columns:
-        raise ValueError(f"Die Tabelle '{TABLE_ANOM}' muss IPL und TAGEN enthalten. Ist: {list(data.columns)}")
-
-    data["TAGEN"] = pd.to_numeric(data["TAGEN"], errors="coerce").fillna(0)
-    data["IPL_dt"] = pd.to_datetime(data["IPL"], errors="coerce")
-
-    if data["IPL_dt"].notna().any():
-        data = data.sort_values("IPL_dt").reset_index(drop=True)
-        data["x"] = data["IPL_dt"]
-        x_title = "IPL"
-    else:
-        data = data.sort_values("IPL").reset_index(drop=True)
-        data["x"] = data["IPL"].astype(str)
-        x_title = "IPL"
-
-    data.attrs["x_title"] = x_title
-    return data
-
-
-def anomaly_empty_result():
-    fig = go.Figure()
-    fig.update_layout(
-        template="plotly_white",
-        height=520,
-        font=dict(size=20),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=60, l=80, r=50),
-        legend_title_text="",
-        clickmode="event+select",
-    )
-    fig.update_yaxes(title_text="TAGEN", title_font=dict(size=26), tickfont=dict(size=22))
-    fig.update_xaxes(title_text="IPL", title_font=dict(size=26), tickfont=dict(size=22))
-
-    return fig, pd.DataFrame(), {
-        "count": 0,
-        "last": None,
-        "maxdev": None,
-        "maxdev_days": None,
-        "maxdev_dir": None,
-    }
-
-
-def anomaly_figure(df_base: pd.DataFrame, window: int = 8, sensitivity: float = 3.0):
-    data = df_base.copy()
-    if data.empty:
-        return anomaly_empty_result()
-
-    w = int(max(3, window))
-    min_periods = max(3, w // 2)
-
-    roll_mean = data["TAGEN"].rolling(w, min_periods=min_periods).mean()
-    roll_std = data["TAGEN"].rolling(w, min_periods=min_periods).std()
-
-    denom = roll_std.replace(0, np.nan)
-    score = (data["TAGEN"] - roll_mean) / denom
-    is_anom = score.notna() & (score.abs() > float(sensitivity))
-
-    abs_dev = (data["TAGEN"] - roll_mean).abs()
-    dev_signed = data["TAGEN"] - roll_mean
-
-    data["baseline"] = roll_mean
-    data["score"] = score
-    data["is_anomaly"] = is_anom
-    data["abs_dev"] = abs_dev
-    data["dev_signed"] = dev_signed
-
-    n = int(is_anom.sum())
-    last_anom_x = data.loc[is_anom, "x"].iloc[-1] if n > 0 else None
-
-    max_dev_x = None
-    max_dev_days = None
-    max_dev_dir = None
-
-    if n > 0:
-        anom_only = data.loc[is_anom].copy()
-        idx_max = anom_only["abs_dev"].idxmax()
-        max_dev_x = data.loc[idx_max, "x"]
-        max_dev_days = float(data.loc[idx_max, "abs_dev"])
-        max_dev_dir = "↑" if float(data.loc[idx_max, "dev_signed"]) >= 0 else "↓"
-
-    fig = go.Figure()
-
-    fig.add_trace(
-        go.Scatter(
-            x=data["x"],
-            y=data["baseline"],
-            mode="lines",
-            name="Erwarteter Bereich (Trend)",
-            line=dict(width=2, dash="dot"),
-            hovertemplate="Trend: %{y:.2f}<extra></extra>",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=data["x"],
-            y=data["TAGEN"],
-            mode="lines+markers",
-            name="TAGEN",
-            line=dict(width=3),
-            marker=dict(size=7),
-            hovertemplate="IPL: %{x}<br>TAGEN: %{y:.2f}<extra></extra>",
-        )
-    )
-
-    anom = data.loc[data["is_anomaly"]].copy()
-
-    if not anom.empty:
-        anom["dir"] = np.where(anom["dev_signed"] >= 0, "↑", "↓")
-        customdata = np.column_stack(
-            (
-                anom["abs_dev"].round(2).values,
-                anom["dir"].astype(str).values,
-                anom["x"].astype(str).values,
-            )
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                x=anom["x"],
-                y=anom["TAGEN"],
-                mode="markers",
-                name="Warnsignal",
-                marker=dict(size=11, symbol="circle"),
-                customdata=customdata,
-                hovertemplate=(
-                    "Warnsignal<br>"
-                    "IPL: %{x}<br>"
-                    "TAGEN: %{y:.2f}<br>"
-                    "Δ zum Trend: %{customdata[0]} Tage (%{customdata[1]})"
-                    "<extra></extra>"
-                ),
-            )
-        )
-    else:
-        fig.add_trace(
-            go.Scatter(
-                x=[],
-                y=[],
-                mode="markers",
-                name="Warnsignal",
-                marker=dict(size=11, symbol="circle"),
-                hoverinfo="skip",
-            )
-        )
-
-    fig.update_layout(
-        template="plotly_white",
-        height=520,
-        font=dict(size=20),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=60, l=80, r=50),
-        legend_title_text="",
-        clickmode="event+select",
-    )
-    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
-    fig.update_xaxes(title_text=data.attrs.get("x_title", "IPL"), title_font=dict(size=26), tickfont=dict(size=22))
-
-    return fig, data, {
-        "count": n,
-        "last": last_anom_x,
-        "maxdev": max_dev_x,
-        "maxdev_days": max_dev_days,
-        "maxdev_dir": max_dev_dir,
-    }
 
 
 # ============================================================
@@ -1894,84 +1581,85 @@ def render_tab(tab):
         )
 
     if tab == "tab-anomalie":
-        try:
-            df_a = load_anomaly_data()
-            df_base = prepare_anomaly_series(df_a)
-            init_fig, _, init_kpi = anomaly_figure(df_base, window=8, sensitivity=map_sensitivity(2))
-        except Exception:
-            init_fig, _, init_kpi = anomaly_empty_result()
+        result = get_anomaly_results(window=8, sensitivity_level=2)
+        fig = result["figure"]
+        kpi = result["kpi"]
 
         maxdev_val = "-"
-        if init_kpi["maxdev_days"] is not None and init_kpi["maxdev"] is not None:
-            maxdev_val = f"{fmt_date(init_kpi['maxdev'])} (Δ={int(init_kpi['maxdev_days'])} Tage {init_kpi['maxdev_dir'] or ''})"
+        if kpi["maxdev_days"] is not None and kpi["maxdev"] is not None:
+            maxdev_val = f"{fmt_date(kpi['maxdev'])} (Δ={int(kpi['maxdev_days'])} Tage {kpi['maxdev_dir'] or ''})"
 
         return html.Div(
-            [
-                html.H4("🔎 Kritische Abweichungen und Warnsignale", style=TITLE_STYLE),
-                html.Div(
-                    [
-                        html.Div(
-                            [
-                                html.Label("Glättung (Fenster)", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
-                                dcc.Slider(
-                                    id="anom-window",
-                                    min=3,
-                                    max=30,
-                                    step=1,
-                                    value=8,
-                                    marks={3: "3", 7: "7", 14: "14", 30: "30"},
-                                ),
-                            ],
-                            style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
-                        ),
-                        html.Div(
-                            [
-                                html.Label("Empfindlichkeit", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
-                                dcc.Slider(
-                                    id="anom-sens",
-                                    min=1,
-                                    max=4,
-                                    step=1,
-                                    value=2,
-                                    marks={1: "niedrig", 2: "mittel", 3: "hoch", 4: "sehr hoch"},
-                                ),
-                            ],
-                            style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
-                        ),
-                    ],
-                    style=CONTROL_ROW_STYLE,
-                ),
-                html.Div(
-                    id="anom-kpi",
-                    style=KPI_CONTAINER_STYLE_TIGHT,
-                    children=[
-                        kpi_card("Warnsignale", str(init_kpi["count"])),
-                        kpi_card("Letztes Warnsignal", fmt_date(init_kpi["last"])),
-                        kpi_card("Größte Abweichung", maxdev_val),
-                    ],
-                ),
-                html.Div(
-                    [html.Div(dcc.Graph(id="anom-fig", figure=init_fig), style=CHART_CARD_STYLE)],
-                    style=SECTION_STYLE,
-                ),
-                html.Div(
-                    id="anom-detail-section",
-                    children=[
-                        html.Div(
-                            "Klicken Sie auf ein markiertes Warnsignal, um Details aus BESTAND (Top 10) zu sehen.",
-                            id="anom-click-info",
-                            style={**TEXT_CARD_STYLE, "width": PAGE_WIDTH, "margin": "0 auto 10px auto"},
-                        ),
-                        html.Div(
-                            html.Div(make_grid("anom-detail-grid", [], [], width="100%"), style=CHART_CARD_STYLE),
-                            style=SECTION_STYLE,
-                        ),
-                    ],
-                    style={"display": "none"},
-                ),
-            ],
-            style=PAGE_STYLE,
-        )
+        [
+            html.H4("🔎 Kritische Abweichungen und Warnsignale", style=TITLE_STYLE),
+
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Label("Glättung (Fenster)", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                            dcc.Slider(
+                                id="anom-window",
+                                min=3,
+                                max=30,
+                                step=1,
+                                value=8,
+                                marks={3: "3", 7: "7", 14: "14", 30: "30"},
+                            ),
+                        ],
+                        style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
+                    ),
+                    html.Div(
+                        [
+                            html.Label("Empfindlichkeit", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                            dcc.Slider(
+                                id="anom-sens",
+                                min=1,
+                                max=4,
+                                step=1,
+                                value=2,
+                                marks={1: "niedrig", 2: "mittel", 3: "hoch", 4: "sehr hoch"},
+                            ),
+                        ],
+                        style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
+                    ),
+                ],
+                style=CONTROL_ROW_STYLE,
+            ),
+
+            html.Div(
+                id="anom-kpi",
+                style=KPI_CONTAINER_STYLE_TIGHT,
+                children=[
+                    kpi_card("Warnsignale", str(kpi["count"])),
+                    kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
+                    kpi_card("Größte Abweichung", maxdev_val),
+                ],
+            ),
+
+            html.Div(
+                [html.Div(dcc.Graph(id="anom-fig", figure=fig), style=CHART_CARD_STYLE)],
+                style=SECTION_STYLE,
+            ),
+
+            html.Div(
+                id="anom-detail-section",
+                children=[
+                    html.Div(
+                        "Klicken Sie auf ein markiertes Warnsignal, um Details zu sehen.",
+                        id="anom-click-info",
+                        style={**TEXT_CARD_STYLE, "width": PAGE_WIDTH, "margin": "0 auto 10px auto"},
+                    ),
+                    html.Div(
+                        html.Div(make_grid("anom-detail-grid", [], [], width="100%"), style=CHART_CARD_STYLE),
+                        style=SECTION_STYLE,
+                    ),
+                ],
+                style={"display": "none"},
+            ),
+        ],
+        style=PAGE_STYLE,
+    )
 
     if tab == "tab-gap-survival":
         survival_rows, survival_cols = survival_risk_grid_data()
@@ -2479,7 +2167,6 @@ def update_forecast_graph(team_value, tab):
         kpis["max_risk"],
     )
 
-
 @app.callback(
     Output("anom-fig", "figure"),
     Output("anom-kpi", "children"),
@@ -2491,16 +2178,9 @@ def update_anomalies(window, sens, tab):
     if tab != "tab-anomalie":
         return no_update, no_update
 
-    try:
-        df_a = load_anomaly_data()
-        if df_a.empty:
-            fig, _, kpi = anomaly_empty_result()
-        else:
-            df_base = prepare_anomaly_series(df_a)
-            real_sens = map_sensitivity(int(sens))
-            fig, _, kpi = anomaly_figure(df_base, window=int(window), sensitivity=real_sens)
-    except Exception:
-        fig, _, kpi = anomaly_empty_result()
+    result = get_anomaly_results(window=int(window), sensitivity_level=int(sens))
+    fig = result["figure"]
+    kpi = result["kpi"]
 
     maxdev_val = "-"
     if kpi["maxdev_days"] is not None and kpi["maxdev"] is not None:
@@ -2511,7 +2191,6 @@ def update_anomalies(window, sens, tab):
         kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
         kpi_card("Größte Abweichung", maxdev_val),
     ]
-
 
 @app.callback(
     Output("anom-detail-grid", "rowData"),
