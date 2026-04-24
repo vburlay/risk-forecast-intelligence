@@ -9,23 +9,15 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import dash_ag_grid as dag
 from dash import Dash, html, dcc, Input, Output, State, no_update, ALL, ctx
 
-from pack.config import (
-    APP_TITLE,
-    DEFAULT_REFRESH_INTERVAL_MS,
-)
-from pack.data_access import (
-    duck_query_df,
-    get_team_values,
-    get_latest_ipl_value,
-)
+from pack.config import APP_TITLE, DEFAULT_REFRESH_INTERVAL_MS
+from pack.data_access import duck_query_df, get_team_values, get_latest_ipl_value
 
-from pack.services.anomaly_service import (
-    get_anomaly_results,
-    get_anomaly_bestand_detail,
-)
+from pack.ui.styles import *
+from pack.ui.components import *
+
+from pack.services.anomaly_service import get_anomaly_results, get_anomaly_bestand_detail
 from pack.services.forecast_service import (
     prepare_forecast_plot_dataset,
     get_forecast_team_kpis,
@@ -52,23 +44,12 @@ from pack.services.risk_service import (
     get_survival_heatmap_data,
     get_survival_grid_df,
 )
-from pack.risk.core import (
-    combined_risikostatus,
-    calculate_days_to_critical,
-)
+from pack.risk.core import combined_risikostatus, calculate_days_to_critical
+
 
 # ============================================================
-# Konstanten
+# Sidebar
 # ============================================================
-BG_COLOR = "#fff9e6"
-CARD_BG = "#ffffff"
-ACCENT = "#119DFF"
-TEXT = "#2c3e50"
-TEXT_MUTED = "#6b7785"
-
-DELTA_UP_COLOR = "#198754"
-DELTA_DOWN_COLOR = "#dc3545"
-
 SIDEBAR_ITEMS = [
     ("tab-monitoring", "📊 Steuerung"),
     ("tab-forecast", "📈 Prognose"),
@@ -79,11 +60,13 @@ SIDEBAR_ITEMS = [
     ("tab-description", "📘 Beschreibung & Interpretation"),
 ]
 
+
 # ============================================================
 # App
 # ============================================================
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
+
 
 # ============================================================
 # Refresh State
@@ -97,243 +80,7 @@ REFRESH_STATE = {
 }
 REFRESH_LOCK = threading.Lock()
 
-# ============================================================
-# Layout system
-# ============================================================
-PAGE_WIDTH = "90%"
-CARD_RADIUS = "12px"
-CARD_SHADOW = "0 3px 10px rgba(0,0,0,0.08)"
-SECTION_GAP = "24px"
 
-PAGE_STYLE = {
-    "backgroundColor": BG_COLOR,
-    "minHeight": "100vh",
-    "padding": "20px 0 40px 0",
-}
-
-SECTION_STYLE = {
-    "width": PAGE_WIDTH,
-    "margin": "0 auto 24px auto",
-}
-
-TITLE_STYLE = {
-    "textAlign": "center",
-    "color": ACCENT,
-    "fontSize": "30px",
-    "fontWeight": "bold",
-    "marginTop": "24px",
-    "marginBottom": "18px",
-}
-
-BIG_TITLE_STYLE = {
-    "textAlign": "center",
-    "color": ACCENT,
-    "fontSize": "34px",
-    "fontWeight": "bold",
-    "marginTop": "20px",
-    "marginBottom": "18px",
-    "textShadow": "1px 1px 2px rgba(0,0,0,0.08)",
-}
-
-SUBTITLE_STYLE = {
-    "fontSize": "24px",
-    "fontWeight": "bold",
-    "color": TEXT,
-    "marginBottom": "12px",
-}
-
-CARD_STYLE = {
-    "backgroundColor": CARD_BG,
-    "padding": "16px 18px",
-    "borderRadius": CARD_RADIUS,
-    "boxShadow": CARD_SHADOW,
-    "borderLeft": f"5px solid {ACCENT}",
-    "boxSizing": "border-box",
-    "width": "100%",
-}
-
-TEXT_CARD_STYLE = {
-    **CARD_STYLE,
-    "fontSize": "18px",
-    "lineHeight": "1.6",
-}
-
-CHART_CARD_STYLE = {
-    **CARD_STYLE,
-    "padding": "12px 14px",
-}
-
-CONTROL_CARD_STYLE = {
-    **CARD_STYLE,
-    "padding": "14px 16px",
-}
-
-APP_SHELL_STYLE = {
-    "display": "flex",
-    "minHeight": "100vh",
-    "backgroundColor": "rgba(135, 206, 250, 0.3)",
-}
-
-SIDEBAR_STYLE = {
-    "width": "280px",
-    "minWidth": "280px",
-    "backgroundColor": "#ffffff",
-    "padding": "16px 12px",
-    "boxShadow": "2px 0 10px rgba(0,0,0,0.08)",
-    "transition": "all 0.25s ease",
-    "overflow": "hidden",
-}
-
-SIDEBAR_COLLAPSED_STYLE = {
-    "width": "72px",
-    "minWidth": "72px",
-    "backgroundColor": "#ffffff",
-    "padding": "16px 8px",
-    "boxShadow": "2px 0 10px rgba(0,0,0,0.08)",
-    "transition": "all 0.25s ease",
-    "overflow": "hidden",
-}
-
-CONTENT_STYLE = {
-    "flex": "1",
-    "padding": "20px",
-}
-
-TAB_BUTTON_STYLE = {
-    "width": "100%",
-    "padding": "14px 16px",
-    "marginBottom": "10px",
-    "border": "none",
-    "borderRadius": "12px",
-    "backgroundColor": "#eef6ff",
-    "color": TEXT,
-    "fontSize": "17px",
-    "fontWeight": "bold",
-    "textAlign": "left",
-    "cursor": "pointer",
-}
-
-TAB_BUTTON_ACTIVE_STYLE = {
-    **TAB_BUTTON_STYLE,
-    "backgroundColor": ACCENT,
-    "color": "white",
-}
-
-TOGGLE_BTN_STYLE = {
-    "width": "100%",
-    "padding": "10px 12px",
-    "marginBottom": "18px",
-    "border": "none",
-    "borderRadius": "10px",
-    "backgroundColor": "#dfefff",
-    "color": TEXT,
-    "fontWeight": "bold",
-    "cursor": "pointer",
-}
-
-REFRESH_BUTTON_STYLE = {
-    "padding": "6px 12px",
-    "border": "none",
-    "borderRadius": "8px",
-    "backgroundColor": "#6c63ff",
-    "color": "white",
-    "fontSize": "13px",
-    "fontWeight": "bold",
-    "cursor": "pointer",
-    "height": "34px",
-    "lineHeight": "1",
-}
-
-MONITORING_INFO_LINE_STYLE = {
-    "width": PAGE_WIDTH,
-    "margin": "0 auto 10px auto",
-    "minHeight": "28px",
-    "display": "flex",
-    "alignItems": "center",
-    "justifyContent": "center",
-    "fontSize": "16px",
-    "fontWeight": "bold",
-    "color": TEXT,
-}
-
-TWO_COLUMN_ROW_STYLE = {
-    "width": PAGE_WIDTH,
-    "margin": "0 auto 24px auto",
-    "display": "flex",
-    "gap": SECTION_GAP,
-    "flexWrap": "wrap",
-    "alignItems": "stretch",
-}
-
-HALF_COLUMN_STYLE = {
-    "flex": "1 1 420px",
-    "minWidth": "420px",
-    "maxWidth": "calc(50% - 12px)",
-    "boxSizing": "border-box",
-}
-
-CONTROL_ROW_STYLE = {
-    "width": PAGE_WIDTH,
-    "margin": "0 auto 16px auto",
-    "display": "flex",
-    "gap": "16px",
-    "flexWrap": "wrap",
-    "alignItems": "stretch",
-}
-
-KPI_CONTAINER_STYLE = {
-    "width": PAGE_WIDTH,
-    "margin": "0 auto 24px auto",
-    "display": "grid",
-    "gridTemplateColumns": "repeat(auto-fit, minmax(180px, 1fr))",
-    "gap": "12px",
-    "alignItems": "stretch",
-    "boxSizing": "border-box",
-}
-
-KPI_CONTAINER_STYLE_TIGHT = {
-    **KPI_CONTAINER_STYLE,
-    "margin": "0 auto 16px auto",
-}
-
-KPI_BASE_STYLE = {
-    **CARD_STYLE,
-    "padding": "10px 12px",
-    "display": "flex",
-    "flexDirection": "column",
-    "justifyContent": "center",
-    "alignItems": "flex-start",
-    "height": "78px",
-    "minWidth": "0",
-    "overflow": "hidden",
-}
-
-KPI_TITLE_STYLE = {
-    "fontSize": "16px",
-    "fontWeight": "bold",
-    "color": TEXT_MUTED,
-    "lineHeight": "1.2",
-    "marginBottom": "6px",
-    "whiteSpace": "nowrap",
-    "overflow": "hidden",
-    "textOverflow": "ellipsis",
-    "width": "100%",
-}
-
-KPI_VALUE_STYLE = {
-    "fontSize": "24px",
-    "fontWeight": "bold",
-    "color": ACCENT,
-    "lineHeight": "1.05",
-    "whiteSpace": "nowrap",
-    "overflow": "hidden",
-    "textOverflow": "ellipsis",
-    "width": "100%",
-}
-
-# ============================================================
-# Refresh Helper
-# ============================================================
 def set_refresh_state(**kwargs):
     with REFRESH_LOCK:
         REFRESH_STATE.update(kwargs)
@@ -420,7 +167,7 @@ def run_generate_mock_data():
 
 
 # ============================================================
-# Allgemeine Helper
+# General helpers
 # ============================================================
 def ipl_iso_to_db_format(ipl_iso: str) -> str:
     dt = pd.to_datetime(ipl_iso, errors="coerce")
@@ -447,187 +194,6 @@ def fmt_date(v):
         return str(v)
 
 
-# ============================================================
-# UI Helper
-# ============================================================
-def section_title(text: str):
-    return html.Div(text, style=SUBTITLE_STYLE)
-
-
-def kpi_card(title: str, value: str = "—", value_id: Optional[str] = None):
-    value_props = {"style": KPI_VALUE_STYLE}
-    if value_id is not None:
-        value_props["id"] = value_id
-
-    return html.Div(
-        [
-            html.Div(title, style=KPI_TITLE_STYLE),
-            html.Div(value, **value_props),
-        ],
-        style=KPI_BASE_STYLE,
-    )
-
-
-def chart_panel(title: str, figure):
-    return html.Div(
-        [
-            section_title(title),
-            html.Div(dcc.Graph(figure=figure), style=CHART_CARD_STYLE),
-        ],
-        style=HALF_COLUMN_STYLE,
-    )
-
-
-def make_grid(id_value: str, row_data=None, column_defs=None, width="100%"):
-    return dag.AgGrid(
-        id=id_value,
-        rowData=row_data or [],
-        columnDefs=column_defs or [],
-        defaultColDef={
-            "sortable": True,
-            "filter": True,
-            "resizable": True,
-            "floatingFilter": True,
-            "wrapText": True,
-            "autoHeight": True,
-        },
-        dashGridOptions={
-            "animateRows": True,
-            "suppressHorizontalScroll": False,
-            "pagination": True,
-            "paginationPageSize": 10,
-        },
-        columnSize="sizeToFit",
-        style={"width": width, "margin": "0 auto", "height": "520px"},
-        className="ag-theme-alpine",
-    )
-
-
-def risikostatus_cell_style():
-    return {
-        "styleConditions": [
-            {
-                "condition": "params.value === 'Kritisch'",
-                "style": {
-                    "backgroundColor": "#f8d7da",
-                    "color": "#842029",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-            {
-                "condition": "params.value === 'Beobachten'",
-                "style": {
-                    "backgroundColor": "#fff3cd",
-                    "color": "#664d03",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-            {
-                "condition": "params.value === 'Normal'",
-                "style": {
-                    "backgroundColor": "#d1e7dd",
-                    "color": "#0f5132",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-        ]
-    }
-
-
-def percent_cell_style():
-    return {
-        "styleConditions": [
-            {
-                "condition": "parseFloat(String(params.value).replace('%','')) >= 60",
-                "style": {
-                    "backgroundColor": "#f8d7da",
-                    "color": "#842029",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-            {
-                "condition": "parseFloat(String(params.value).replace('%','')) >= 30 && parseFloat(String(params.value).replace('%','')) < 60",
-                "style": {
-                    "backgroundColor": "#fff3cd",
-                    "color": "#664d03",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-            {
-                "condition": "parseFloat(String(params.value).replace('%','')) < 30",
-                "style": {
-                    "backgroundColor": "#d1e7dd",
-                    "color": "#0f5132",
-                    "fontWeight": "bold",
-                    "textAlign": "center",
-                },
-            },
-        ]
-    }
-
-
-def apply_grid_styles(column_defs: list[dict]) -> list[dict]:
-    """
-    UI-only enrichment: services return semantic columns,
-    app.py attaches Dash AG Grid style rules.
-    """
-    for col in column_defs:
-        if col.get("field") in {"Risikostatus", "Risikostatus_Baseline", "Risikostatus_Szenario"}:
-            col["cellStyle"] = risikostatus_cell_style()
-        if col.get("field") in {
-            "GapSignal",
-            "GapSignal_Baseline",
-            "GapSignal_Szenario",
-            "P(Gap in 30 Tagen)",
-            "P(Gap in 90 Tagen)",
-        }:
-            col["cellStyle"] = percent_cell_style()
-    return column_defs
-
-
-def sidebar_button_style(tab_id: str, active_tab: str, collapsed: bool = False):
-    style = TAB_BUTTON_ACTIVE_STYLE if tab_id == active_tab else TAB_BUTTON_STYLE
-    return {
-        **style,
-        "textAlign": "center" if collapsed else "left",
-        "padding": "14px 10px" if collapsed else "14px 16px",
-    }
-
-
-def description_card(markdown_text: str):
-    return html.Div(
-        dcc.Markdown(markdown_text, mathjax=True),
-        style=TEXT_CARD_STYLE,
-    )
-
-
-def logic_overview_block():
-    return html.Div(
-        [
-            html.Div("Gap-Signal", style={"fontWeight": "bold", "marginBottom": "2px"}),
-            html.Div(
-                "Heuristische relative Abweichung vom Forecast ohne separates Survival-Modell.",
-                style={"marginBottom": "10px"},
-            ),
-            html.Div("Anomaliesignal", style={"fontWeight": "bold", "marginBottom": "2px"}),
-            html.Div(
-                "Stärke der aktuellen Abweichung vom erwarteten Verlauf.",
-                style={"marginBottom": "10px"},
-            ),
-            html.Div("Zeit bis kritisch", style={"fontWeight": "bold", "marginBottom": "2px"}),
-            html.Div(
-                "Geschätzte Zeit bis zum kritischen Schwellenwert auf Basis des aktuellen Trends."
-            ),
-        ],
-        style=TEXT_CARD_STYLE,
-    )
-
-
 def get_delta_symbol(val: str) -> str:
     try:
         num = int(str(val).replace("+", ""))
@@ -652,7 +218,12 @@ def build_monitoring_alerts_children():
     n_crit = data["n_crit"]
 
     if top_neg is None and top_pos is None and n_crit == 0:
-        return [html.Span("Keine aktuellen Hinweise", style={"color": TEXT, "fontWeight": "bold"})]
+        return [
+            html.Span(
+                "Keine aktuellen Hinweise",
+                style={"color": TEXT, "fontWeight": "bold"},
+            )
+        ]
 
     children = []
 
@@ -673,6 +244,7 @@ def build_monitoring_alerts_children():
     def add_team_part(team_value: str, abweichung: str):
         symbol = get_delta_symbol(abweichung)
         color = get_delta_color(abweichung)
+
         children.extend(
             [
                 html.Span(
@@ -716,6 +288,7 @@ def build_monitoring_alerts_children():
     if n_crit > 0:
         if children:
             add_separator()
+
         children.append(
             html.Span(
                 f"{n_crit} Team(s) befinden sich aktuell im kritischen Zustand.",
@@ -741,8 +314,9 @@ except Exception:
 
 DEFAULT_TEAM = TEAM_VALUES[0] if TEAM_VALUES else None
 
+
 # ============================================================
-# Forecast grids
+# Forecast grid
 # ============================================================
 def forecast_detail_grid_data(team_value: Optional[str]):
     df = build_forecast_detail_df(
@@ -750,6 +324,7 @@ def forecast_detail_grid_data(team_value: Optional[str]):
         calculate_days_to_critical_fn=calculate_days_to_critical,
         combined_risikostatus_fn=combined_risikostatus,
     )
+
     if df.empty:
         return [], []
 
@@ -801,6 +376,7 @@ def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Fi
             name="Ausgangslage",
         )
     )
+
     fig.add_trace(
         go.Bar(
             x=merged["Team"],
@@ -819,8 +395,10 @@ def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Fi
         margin=dict(t=20, b=80, l=80, r=50),
         legend_title_text="",
     )
+
     fig.update_yaxes(title_text=title, title_font=dict(size=22), tickfont=dict(size=18))
     fig.update_xaxes(title_text="Team", title_font=dict(size=22), tickfont=dict(size=16))
+
     return fig
 
 
@@ -902,6 +480,7 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
     df_local["PROGNOSE"] = pd.to_numeric(df_local["PROGNOSE"], errors="coerce").fillna(0)
 
     series_cols = ["TAGEN", "PROGNOSE"]
+
     if "baseline_forecast" in df_local.columns:
         df_local["baseline_forecast"] = pd.to_numeric(df_local["baseline_forecast"], errors="coerce")
         series_cols.append("baseline_forecast")
@@ -944,8 +523,10 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
         height=520,
         legend_title_text="",
     )
+
     fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
     fig.update_xaxes(title_text=x_title, title_font=dict(size=26), tickfont=dict(size=22))
+
     return fig
 
 
@@ -987,13 +568,16 @@ def build_monitoring_main_fig():
         margin=dict(t=20, b=60, l=80, r=50),
         legend_title_text="",
     )
+
     fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
     fig.update_xaxes(title_text="IPL", title_font=dict(size=26), tickfont=dict(size=22))
+
     return fig
 
 
 def build_survival_scatter_fig(horizon: int):
     plot_df = get_survival_scatter_df(horizon=horizon)
+
     if plot_df.empty:
         return go.Figure()
 
@@ -1016,6 +600,7 @@ def build_survival_scatter_fig(horizon: int):
     )
 
     fig.update_traces(marker=dict(line=dict(width=1)))
+
     fig.update_layout(
         height=360,
         font=dict(size=16),
@@ -1024,8 +609,10 @@ def build_survival_scatter_fig(horizon: int):
         margin=dict(t=20, b=50, l=65, r=30),
         legend_title_text="",
     )
+
     fig.update_yaxes(title_text=f"P(Gap in {horizon} Tagen) %", title_font=dict(size=20), tickfont=dict(size=14))
     fig.update_xaxes(title_text="Anomaliesignal", title_font=dict(size=20), tickfont=dict(size=14))
+
     return fig
 
 
@@ -1072,6 +659,7 @@ def build_expected_time_gap_fig():
         margin=dict(t=20, b=40, l=120, r=30),
         showlegend=False,
     )
+
     fig.update_xaxes(
         title_text="Erwarteter Zeitraum",
         showticklabels=False,
@@ -1080,6 +668,7 @@ def build_expected_time_gap_fig():
         range=[0, 35],
     )
     fig.update_yaxes(title_text="", tickfont=dict(size=14))
+
     return fig
 
 
@@ -1124,8 +713,10 @@ def build_survival_heatmap_fig():
         paper_bgcolor=BG_COLOR,
         margin=dict(t=20, b=40, l=120, r=35),
     )
+
     fig.update_xaxes(title_text="Horizont", title_font=dict(size=20), tickfont=dict(size=14))
     fig.update_yaxes(title_text="", tickfont=dict(size=14))
+
     return fig
 
 
@@ -1196,6 +787,7 @@ app.layout = html.Div(
     ],
     style=APP_SHELL_STYLE,
 )
+
 
 # ============================================================
 # Sidebar callbacks
@@ -1408,7 +1000,12 @@ def render_tab(tab):
                             [
                                 html.Label(
                                     "Team",
-                                    style={"fontSize": "16px", "fontWeight": "bold", "color": TEXT, "marginBottom": "6px"},
+                                    style={
+                                        "fontSize": "16px",
+                                        "fontWeight": "bold",
+                                        "color": TEXT,
+                                        "marginBottom": "6px",
+                                    },
                                 ),
                                 dcc.Dropdown(
                                     id="forecast-filter",
@@ -1460,7 +1057,10 @@ def render_tab(tab):
                     [
                         html.Div(
                             [
-                                html.Label("Glättung (Fenster)", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                                html.Label(
+                                    "Glättung (Fenster)",
+                                    style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT},
+                                ),
                                 dcc.Slider(
                                     id="anom-window",
                                     min=3,
@@ -1474,7 +1074,10 @@ def render_tab(tab):
                         ),
                         html.Div(
                             [
-                                html.Label("Empfindlichkeit", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                                html.Label(
+                                    "Empfindlichkeit",
+                                    style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT},
+                                ),
                                 dcc.Slider(
                                     id="anom-sens",
                                     min=1,
@@ -1897,6 +1500,7 @@ Die fachliche Logik folgt der analytischen Kette:
 def start_data_refresh(n_clicks, active_tab):
     if active_tab != "tab-monitoring":
         return True
+
     if not n_clicks:
         return True
 
@@ -1906,6 +1510,7 @@ def start_data_refresh(n_clicks, active_tab):
 
     thread = threading.Thread(target=run_generate_mock_data, daemon=True)
     thread.start()
+
     return False
 
 
@@ -1943,6 +1548,7 @@ def refresh_stand_line_on_open(active_tab, n_intervals):
         return no_update
 
     state = get_refresh_state()
+
     if state["running"]:
         icon = "⏳" if n_intervals % 2 == 0 else "⌛"
         return f"{icon} Daten werden aktualisiert ..."
@@ -2124,7 +1730,7 @@ def update_anom_details(clickData, tab):
 )
 def update_scenario_tab(scenario_type, scenario_intensity, tab):
     if tab != "tab-scenario":
-        return (no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update)
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     intensity = float(scenario_intensity)
     sim_df = build_simulated_team_risk_df(scenario_type, intensity)
@@ -2163,7 +1769,7 @@ def update_scenario_tab(scenario_type, scenario_intensity, tab):
 )
 def update_decision_tab(decision_action, decision_intensity, tab):
     if tab != "tab-decision":
-        return (no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update)
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     intensity = float(decision_intensity)
     sim_df = build_simulated_team_risk_df(decision_action, intensity)
