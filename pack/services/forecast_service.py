@@ -223,3 +223,20 @@ def forecast_detail_grid_data(
     ]
 
     return display_df.to_dict("records"), column_defs
+def prepare_forecast_plot_dataset(team_value: str | None) -> pd.DataFrame:
+    if team_value is None:
+        return pd.DataFrame()
+
+    df = prepare_forecast_team_dataset(str(team_value))
+    if df.empty:
+        return pd.DataFrame()
+
+    out = df.copy()
+
+    out["TAGEN"] = pd.to_numeric(out["TAGEN"], errors="coerce").fillna(0)
+    out["PROGNOSE"] = pd.to_numeric(out["PROGNOSE"], errors="coerce").fillna(0)
+
+    if "baseline_forecast" in out.columns:
+        out["baseline_forecast"] = pd.to_numeric(out["baseline_forecast"], errors="coerce")
+
+    return out

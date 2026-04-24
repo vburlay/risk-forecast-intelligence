@@ -215,3 +215,57 @@ def simulation_summary_kpis(sim_df: pd.DataFrame) -> dict[str, str]:
         "beobachten": beobachten,
         "avg_signal": avg_signal,
     }
+def get_simulation_grid_df(mode: str, intensity_pct: float) -> pd.DataFrame:
+    """
+    Dataframe for scenario / decision result grid.
+    UI decides how to render columns.
+    """
+    sim = build_simulated_team_risk_df(mode, intensity_pct)
+
+    if sim.empty:
+        return pd.DataFrame()
+
+    return sim.drop(columns=["GapRiskValue"], errors="ignore").copy()
+
+
+def get_simulation_comparison_grid_df(mode: str, intensity_pct: float) -> pd.DataFrame:
+    """
+    Dataframe for baseline vs scenario comparison grid.
+    UI decides how to render columns.
+    """
+    return build_simulation_comparison_df(mode, intensity_pct)
+
+
+def get_simulation_chart_df(
+    mode: str,
+    intensity_pct: float,
+    top_n: int = 12,
+) -> pd.DataFrame:
+    """
+    Dataframe for simulation comparison chart.
+    Contains baseline and simulated GapRiskValue by team.
+    """
+    base = build_team_risk_df()
+    sim = build_simulated_team_risk_df(mode, intensity_pct)
+
+    if base.empty or sim.empty:
+        return pd.DataFrame()
+
+    required_base = {"Team", "GapRiskValue"}
+    required_sim = {"Team", "GapRiskValue"}
+
+    if not required_base.issubset(base.columns) or not required_sim.issubset(sim.columns):
+        return pd.DataFrame()
+
+    merged = base[["Team", "GapRiskValue"]].merge(
+        sim[["Team", "GapRiskValue"]],
+        on="Team",
+        suffixes=("_Baseline", "_Simulation"),
+    )
+
+    return (
+        merged
+        .sort_values("GapRiskValue_Simulation", ascending=False)
+        .head(top_n)
+        .reset_index(drop=True)
+    )

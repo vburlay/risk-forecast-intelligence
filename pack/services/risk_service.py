@@ -120,3 +120,78 @@ def build_survival_risk_df() -> pd.DataFrame:
         ascending=[False, False, False],
     )
     return out
+def get_survival_grid_df() -> pd.DataFrame:
+    df = build_survival_risk_df()
+    if df.empty:
+        return pd.DataFrame()
+
+    return df.drop(
+        columns=["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value"],
+        errors="ignore",
+    ).copy()
+
+
+def get_survival_scatter_df(horizon: int = 30) -> pd.DataFrame:
+    df = build_survival_risk_df()
+    if df.empty:
+        return pd.DataFrame()
+
+    risk_col = f"P(Gap in {horizon} Tagen)_value"
+    if risk_col not in df.columns:
+        return pd.DataFrame()
+
+    out = df.copy()
+    out["RiskPct"] = out[risk_col] * 100
+    out["AbwNum"] = pd.to_numeric(
+        out["Abweichung"].astype(str).str.replace("+", "", regex=False),
+        errors="coerce",
+    ).fillna(0).abs()
+
+    return out
+
+
+def get_expected_time_gap_df(top_n: int = 12) -> pd.DataFrame:
+    df = build_survival_risk_df()
+    if df.empty:
+        return pd.DataFrame()
+
+    out = df.copy()
+
+    mapping = {"0-7": 7, "8-30": 30, "30+": 31}
+    label_mapping = {
+        "0-7": "0–7 Tage",
+        "8-30": "8–30 Tage",
+        "30+": ">30 Tage",
+    }
+    color_map = {
+        "Kritisch": "#d62728",
+        "Beobachten": "#f2c94c",
+        "Normal": "#2ca02c",
+    }
+
+    out["ExpectedTimeNum"] = out["Erwartete Zeit bis zum Gap"].map(mapping).fillna(31)
+    out["ExpectedTimeLabel"] = out["Erwartete Zeit bis zum Gap"].map(label_mapping).fillna(">30 Tage")
+    out["BarColor"] = out["Risikostatus"].map(color_map).fillna("#2ca02c")
+
+    return (
+        out.sort_values(
+            ["ExpectedTimeNum", "P(Gap in 30 Tagen)_value"],
+            ascending=[True, False],
+        )
+        .head(top_n)
+        .sort_values("ExpectedTimeNum", ascending=False)
+        .copy()
+    )
+
+
+def get_survival_heatmap_data(top_n: int = 12) -> pd.DataFrame:
+    df = build_survival_risk_df()
+    if df.empty:
+        return pd.DataFrame()
+
+    return (
+        df.copy()
+        .sort_values("P(Gap in 30 Tagen)_value", ascending=False)
+        .head(top_n)
+        .copy()
+    )

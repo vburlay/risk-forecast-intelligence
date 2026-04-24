@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from pack.data_access import get_raw_bestand_top10_by_ipl
 import pandas as pd
 
 from pack.config import ANOMALY_SENSITIVITY_MAP
@@ -46,3 +46,9 @@ def get_anomaly_results(
     except Exception:
         fig, data, kpi = anomaly_empty_result()
         return {"figure": fig, "data": data, "kpi": kpi}
+
+def get_anomaly_bestand_detail(ipl_db_value: str) -> pd.DataFrame:
+    if not ipl_db_value:
+        return pd.DataFrame()
+
+    return get_raw_bestand_top10_by_ipl(ipl_db_value)    

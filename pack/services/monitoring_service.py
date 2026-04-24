@@ -3,22 +3,19 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from pack.data_access import get_latest_ipl_value
+from pack.data_access import (
+    get_latest_ipl_value,
+    load_team_pg_data,
+)
 from pack.services.risk_service import build_team_risk_df
 
 
 def get_monitoring_stand_text(last_stand: str | None = None) -> str:
-    """
-    Build monitoring stand text for the dashboard header.
-    """
     stand = last_stand or get_latest_ipl_value()
     return f"Stand: {stand}"
 
 
-def get_monitoring_kpis() -> dict:
-    """
-    Return monitoring KPI values for the main dashboard.
-    """
+def get_monitoring_kpis() -> dict[str, str]:
     df = build_team_risk_df()
 
     if df.empty:
@@ -55,17 +52,32 @@ def get_monitoring_kpis() -> dict:
     }
 
 
-def get_monitoring_alerts_data() -> dict:
-    """
-    Return compact alert data for UI rendering.
+def get_monitoring_chart_data() -> pd.DataFrame:
+    df = load_team_pg_data()
 
-    Output:
-    {
-        "top_pos": {...} | None,
-        "top_neg": {...} | None,
-        "n_crit": int,
-    }
-    """
+    if df.empty:
+        return pd.DataFrame(columns=["x", "TAGEN", "PROGNOSE"])
+
+    if "IPL_dt" in df.columns and df["IPL_dt"].notna().any():
+        return (
+            df.groupby("IPL_dt", as_index=False)[["TAGEN", "PROGNOSE"]]
+            .sum()
+            .sort_values("IPL_dt")
+            .rename(columns={"IPL_dt": "x"})
+        )
+
+    if "IPL" in df.columns:
+        return (
+            df.groupby("IPL", as_index=False)[["TAGEN", "PROGNOSE"]]
+            .sum()
+            .sort_values("IPL")
+            .rename(columns={"IPL": "x"})
+        )
+
+    return pd.DataFrame(columns=["x", "TAGEN", "PROGNOSE"])
+
+
+def get_monitoring_alerts_data() -> dict:
     df = build_team_risk_df()
 
     if df.empty:
@@ -92,10 +104,22 @@ def get_monitoring_alerts_data() -> dict:
     }
 
 
+def get_monitoring_alerts() -> dict:
+    data = get_monitoring_alerts_data()
+
+    return {
+        "top_positive": data["top_pos"],
+        "top_negative": data["top_neg"],
+        "critical_count": data["n_crit"],
+        "has_alerts": bool(
+            data["top_pos"] is not None
+            or data["top_neg"] is not None
+            or data["n_crit"] > 0
+        ),
+    }
+
+
 def get_monitoring_grid_data() -> tuple[list[dict], list[dict]]:
-    """
-    Return rowData and columnDefs for monitoring risk grid.
-    """
     out = build_team_risk_df()
 
     if out.empty:

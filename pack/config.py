@@ -4,13 +4,10 @@ from pathlib import Path
 # Paths
 # ============================================================
 
-# Корень проекта
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Папка с данными
-DATA_DIR = Path(__file__).resolve().parent.parent
 
-# DuckDB файл
 DB_PATH = str(BASE_DIR / "data" / "mock_iq.db")
 
 

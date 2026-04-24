@@ -4,6 +4,7 @@ import subprocess
 import threading
 import sys
 import time
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -17,40 +18,45 @@ from pack.config import (
 )
 from pack.data_access import (
     duck_query_df,
-    load_team_pg_data,
-    get_raw_bestand_top10_by_ipl,
     get_team_values,
     get_latest_ipl_value,
 )
 
-from pack.services.anomaly_service import get_anomaly_results
-
+from pack.services.anomaly_service import (
+    get_anomaly_results,
+    get_anomaly_bestand_detail,
+)
 from pack.services.forecast_service import (
-    prepare_forecast_team_dataset,
+    prepare_forecast_plot_dataset,
     get_forecast_team_kpis,
     build_forecast_detail_df,
 )
-
 from pack.services.monitoring_service import (
     get_monitoring_kpis,
     get_monitoring_alerts_data,
     get_monitoring_stand_text,
     get_monitoring_grid_data,
+    get_monitoring_chart_data,
 )
 from pack.services.simulation_service import (
     build_simulated_team_risk_df,
-    build_simulation_comparison_df,
     simulation_summary_kpis,
+    get_simulation_grid_df,
+    get_simulation_comparison_grid_df,
+    get_simulation_chart_df,
 )
 from pack.services.risk_service import (
     build_team_risk_df,
-    build_survival_risk_df,
+    get_survival_scatter_df,
+    get_expected_time_gap_df,
+    get_survival_heatmap_data,
+    get_survival_grid_df,
 )
-
 from pack.risk.core import (
     combined_risikostatus,
     calculate_days_to_critical,
 )
+
 # ============================================================
 # Konstanten
 # ============================================================
@@ -149,11 +155,6 @@ CARD_STYLE = {
 TEXT_CARD_STYLE = {
     **CARD_STYLE,
     "fontSize": "18px",
-    "lineHeight": "1.6",
-}
-
-INFO_BOX_STYLE = {
-    **CARD_STYLE,
     "lineHeight": "1.6",
 }
 
@@ -280,9 +281,6 @@ CONTROL_ROW_STYLE = {
     "alignItems": "stretch",
 }
 
-# ============================================================
-# KPI Styles
-# ============================================================
 KPI_CONTAINER_STYLE = {
     "width": PAGE_WIDTH,
     "margin": "0 auto 24px auto",
@@ -449,7 +447,6 @@ def fmt_date(v):
         return str(v)
 
 
-
 # ============================================================
 # UI Helper
 # ============================================================
@@ -572,6 +569,25 @@ def percent_cell_style():
             },
         ]
     }
+
+
+def apply_grid_styles(column_defs: list[dict]) -> list[dict]:
+    """
+    UI-only enrichment: services return semantic columns,
+    app.py attaches Dash AG Grid style rules.
+    """
+    for col in column_defs:
+        if col.get("field") in {"Risikostatus", "Risikostatus_Baseline", "Risikostatus_Szenario"}:
+            col["cellStyle"] = risikostatus_cell_style()
+        if col.get("field") in {
+            "GapSignal",
+            "GapSignal_Baseline",
+            "GapSignal_Szenario",
+            "P(Gap in 30 Tagen)",
+            "P(Gap in 90 Tagen)",
+        }:
+            col["cellStyle"] = percent_cell_style()
+    return column_defs
 
 
 def sidebar_button_style(tab_id: str, active_tab: str, collapsed: bool = False):
@@ -760,44 +776,38 @@ def forecast_detail_grid_data(team_value: Optional[str]):
         {"headerName": "Baseline Forecast", "field": "BaselineForecast", "minWidth": 160, "flex": 1},
         {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 140, "flex": 1},
         {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {
-            "headerName": "Gap-Signal",
-            "field": "GapSignal",
-            "minWidth": 150,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
+        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1},
         {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {
-            "headerName": "Risikostatus",
-            "field": "Risikostatus",
-            "minWidth": 140,
-            "flex": 1,
-            "cellStyle": risikostatus_cell_style(),
-        },
+        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1},
     ]
-    return display_df.to_dict("records"), column_defs
+
+    return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
 # ============================================================
-# Szenario / Maßnahmen
+# Simulation grids and charts
 # ============================================================
-
 def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
-    base = build_team_risk_df()
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
+    merged = get_simulation_chart_df(mode, intensity_pct, top_n=12)
 
     fig = go.Figure()
-    if base.empty or sim.empty:
+    if merged.empty:
         return fig
 
-    merged = base[["Team", "GapRiskValue"]].merge(
-        sim[["Team", "GapRiskValue"]], on="Team", suffixes=("_Baseline", "_Simulation")
+    fig.add_trace(
+        go.Bar(
+            x=merged["Team"],
+            y=merged["GapRiskValue_Baseline"] * 100,
+            name="Ausgangslage",
+        )
     )
-    merged = merged.sort_values("GapRiskValue_Simulation", ascending=False).head(12)
-
-    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Baseline"] * 100, name="Ausgangslage"))
-    fig.add_trace(go.Bar(x=merged["Team"], y=merged["GapRiskValue_Simulation"] * 100, name="Simulation"))
+    fig.add_trace(
+        go.Bar(
+            x=merged["Team"],
+            y=merged["GapRiskValue_Simulation"] * 100,
+            name="Simulation",
+        )
+    )
 
     fig.update_layout(
         barmode="group",
@@ -814,14 +824,11 @@ def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Fi
     return fig
 
 
-
-
 def scenario_grid_data(mode: str, intensity_pct: float):
-    sim = build_simulated_team_risk_df(mode, intensity_pct)
-    if sim.empty:
-        return [], []
+    display_df = get_simulation_grid_df(mode, intensity_pct)
 
-    display_df = sim.drop(columns=["GapRiskValue"]).copy()
+    if display_df.empty:
+        return [], []
 
     column_defs = [
         {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
@@ -829,76 +836,42 @@ def scenario_grid_data(mode: str, intensity_pct: float):
         {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
         {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
         {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {
-            "headerName": "Gap-Signal",
-            "field": "GapSignal",
-            "minWidth": 150,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
+        {"headerName": "Gap-Signal", "field": "GapSignal", "minWidth": 150, "flex": 1},
         {"headerName": "Zeit bis kritisch", "field": "ZeitBisKritisch", "minWidth": 150, "flex": 1},
-        {
-            "headerName": "Risikostatus",
-            "field": "Risikostatus",
-            "minWidth": 140,
-            "flex": 1,
-            "cellStyle": risikostatus_cell_style(),
-        },
+        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1},
     ]
-    return display_df.to_dict("records"), column_defs
+
+    return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
 def comparison_grid_data(mode: str, intensity_pct: float):
-    comp = build_simulation_comparison_df(mode, intensity_pct)
+    comp = get_simulation_comparison_grid_df(mode, intensity_pct)
+
     if comp.empty:
         return [], []
 
     column_defs = [
         {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
-        {
-            "headerName": "Gap-Signal Ausgangslage",
-            "field": "GapSignal_Baseline",
-            "minWidth": 180,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
-        {
-            "headerName": "Gap-Signal Simulation",
-            "field": "GapSignal_Szenario",
-            "minWidth": 180,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
+        {"headerName": "Gap-Signal Ausgangslage", "field": "GapSignal_Baseline", "minWidth": 180, "flex": 1},
+        {"headerName": "Gap-Signal Simulation", "field": "GapSignal_Szenario", "minWidth": 180, "flex": 1},
         {"headerName": "Delta Gap-Signal", "field": "DeltaGapSignal", "minWidth": 140, "flex": 1},
-        {
-            "headerName": "Status Ausgangslage",
-            "field": "Risikostatus_Baseline",
-            "minWidth": 170,
-            "flex": 1,
-            "cellStyle": risikostatus_cell_style(),
-        },
-        {
-            "headerName": "Status Simulation",
-            "field": "Risikostatus_Szenario",
-            "minWidth": 170,
-            "flex": 1,
-            "cellStyle": risikostatus_cell_style(),
-        },
+        {"headerName": "Status Ausgangslage", "field": "Risikostatus_Baseline", "minWidth": 170, "flex": 1},
+        {"headerName": "Status Simulation", "field": "Risikostatus_Szenario", "minWidth": 170, "flex": 1},
         {"headerName": "Zeit Ausgangslage", "field": "ZeitBisKritisch_Baseline", "minWidth": 160, "flex": 1},
         {"headerName": "Zeit Simulation", "field": "ZeitBisKritisch_Szenario", "minWidth": 160, "flex": 1},
     ]
-    return comp.to_dict("records"), column_defs
+
+    return comp.to_dict("records"), apply_grid_styles(column_defs)
 
 
 # ============================================================
-# Grids
+# Risk grids and charts
 # ============================================================
 def survival_risk_grid_data():
-    out = build_survival_risk_df()
-    if out.empty:
-        return [], []
+    display_df = get_survival_grid_df()
 
-    display_df = out.drop(columns=["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value"]).copy()
+    if display_df.empty:
+        return [], []
 
     column_defs = [
         {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
@@ -906,35 +879,13 @@ def survival_risk_grid_data():
         {"headerName": "Aktuell", "field": "Aktuell", "minWidth": 120, "flex": 1},
         {"headerName": "Abweichung", "field": "Abweichung", "minWidth": 130, "flex": 1},
         {"headerName": "Anomaliesignal", "field": "Anomaliesignal", "minWidth": 150, "flex": 1},
-        {
-            "headerName": "P(Gap in 30 Tagen)",
-            "field": "P(Gap in 30 Tagen)",
-            "minWidth": 170,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
-        {
-            "headerName": "P(Gap in 90 Tagen)",
-            "field": "P(Gap in 90 Tagen)",
-            "minWidth": 170,
-            "flex": 1,
-            "cellStyle": percent_cell_style(),
-        },
-        {
-            "headerName": "Erwartete Zeit bis zum Gap",
-            "field": "Erwartete Zeit bis zum Gap",
-            "minWidth": 180,
-            "flex": 1,
-        },
-        {
-            "headerName": "Risikostatus",
-            "field": "Risikostatus",
-            "minWidth": 140,
-            "flex": 1,
-            "cellStyle": risikostatus_cell_style(),
-        },
+        {"headerName": "P(Gap in 30 Tagen)", "field": "P(Gap in 30 Tagen)", "minWidth": 170, "flex": 1},
+        {"headerName": "P(Gap in 90 Tagen)", "field": "P(Gap in 90 Tagen)", "minWidth": 170, "flex": 1},
+        {"headerName": "Erwartete Zeit bis zum Gap", "field": "Erwartete Zeit bis zum Gap", "minWidth": 180, "flex": 1},
+        {"headerName": "Risikostatus", "field": "Risikostatus", "minWidth": 140, "flex": 1},
     ]
-    return display_df.to_dict("records"), column_defs
+
+    return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
 # ============================================================
@@ -999,21 +950,15 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
 
 
 def build_monitoring_main_fig():
-    df = load_team_pg_data()
-    if df.empty:
-        return go.Figure()
-
-    if df["IPL_dt"].notna().any():
-        plot_df = df.groupby("IPL_dt", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL_dt")
-        x = plot_df["IPL_dt"]
-    else:
-        plot_df = df.groupby("IPL", as_index=False)[["TAGEN", "PROGNOSE"]].sum().sort_values("IPL")
-        x = plot_df["IPL"]
+    plot_df = get_monitoring_chart_data()
 
     fig = go.Figure()
+    if plot_df.empty:
+        return fig
+
     fig.add_trace(
         go.Scatter(
-            x=x,
+            x=plot_df["x"],
             y=plot_df["TAGEN"],
             mode="lines+markers",
             name="Ist",
@@ -1021,9 +966,10 @@ def build_monitoring_main_fig():
             marker=dict(size=8),
         )
     )
+
     fig.add_trace(
         go.Scatter(
-            x=x,
+            x=plot_df["x"],
             y=plot_df["PROGNOSE"],
             mode="lines+markers",
             name="Forecast",
@@ -1046,17 +992,10 @@ def build_monitoring_main_fig():
     return fig
 
 
-def build_survival_scatter_90_fig():
-    df = build_survival_risk_df()
-    if df.empty:
+def build_survival_scatter_fig(horizon: int):
+    plot_df = get_survival_scatter_df(horizon=horizon)
+    if plot_df.empty:
         return go.Figure()
-
-    plot_df = df.copy()
-    plot_df["Risk90Pct"] = plot_df["P(Gap in 90 Tagen)_value"] * 100
-    plot_df["AbwNum"] = pd.to_numeric(
-        plot_df["Abweichung"].astype(str).str.replace("+", "", regex=False),
-        errors="coerce",
-    ).fillna(0).abs()
 
     color_map = {
         "Kritisch": "#d62728",
@@ -1067,7 +1006,7 @@ def build_survival_scatter_90_fig():
     fig = px.scatter(
         plot_df,
         x="Anomaliesignal",
-        y="Risk90Pct",
+        y="RiskPct",
         size="AbwNum",
         color="Risikostatus",
         hover_name="Team",
@@ -1085,40 +1024,17 @@ def build_survival_scatter_90_fig():
         margin=dict(t=20, b=50, l=65, r=30),
         legend_title_text="",
     )
-    fig.update_yaxes(title_text="P(Gap in 90 Tagen) %", title_font=dict(size=20), tickfont=dict(size=14))
+    fig.update_yaxes(title_text=f"P(Gap in {horizon} Tagen) %", title_font=dict(size=20), tickfont=dict(size=14))
     fig.update_xaxes(title_text="Anomaliesignal", title_font=dict(size=20), tickfont=dict(size=14))
     return fig
 
 
 def build_expected_time_gap_fig():
-    df = build_survival_risk_df()
+    plot_df = get_expected_time_gap_df()
+
     fig = go.Figure()
-    if df.empty:
+    if plot_df.empty:
         return fig
-
-    plot_df = df.copy()
-
-    mapping = {"0-7": 7, "8-30": 30, "30+": 31}
-    label_mapping = {
-        "0-7": "0–7 Tage",
-        "8-30": "8–30 Tage",
-        "30+": ">30 Tage",
-    }
-    color_map = {
-        "Kritisch": "#d62728",
-        "Beobachten": "#f2c94c",
-        "Normal": "#2ca02c",
-    }
-
-    plot_df["ExpectedTimeNum"] = plot_df["Erwartete Zeit bis zum Gap"].map(mapping).fillna(31)
-    plot_df["ExpectedTimeLabel"] = plot_df["Erwartete Zeit bis zum Gap"].map(label_mapping).fillna(">30")
-    plot_df["BarColor"] = plot_df["Risikostatus"].map(color_map).fillna("#2ca02c")
-
-    plot_df = plot_df.sort_values(
-        ["ExpectedTimeNum", "P(Gap in 30 Tagen)_value"],
-        ascending=[True, False],
-    ).head(12)
-    plot_df = plot_df.sort_values("ExpectedTimeNum", ascending=False)
 
     fig.add_trace(
         go.Bar(
@@ -1156,7 +1072,6 @@ def build_expected_time_gap_fig():
         margin=dict(t=20, b=40, l=120, r=30),
         showlegend=False,
     )
-
     fig.update_xaxes(
         title_text="Erwarteter Zeitraum",
         showticklabels=False,
@@ -1169,19 +1084,13 @@ def build_expected_time_gap_fig():
 
 
 def build_survival_heatmap_fig():
-    df = build_survival_risk_df()
+    heatmap_df = get_survival_heatmap_data(top_n=12)
+
     fig = go.Figure()
-    if df.empty:
+    if heatmap_df.empty:
         return fig
 
-    plot_df = df.copy().sort_values("P(Gap in 30 Tagen)_value", ascending=False).head(12)
-
-    z = np.column_stack(
-        [
-            plot_df["P(Gap in 30 Tagen)_value"].values * 100,
-            plot_df["P(Gap in 90 Tagen)_value"].values * 100,
-        ]
-    )
+    z = heatmap_df[["P(Gap in 30 Tagen)_value", "P(Gap in 90 Tagen)_value"]].values * 100
 
     text = np.empty(z.shape, dtype=object)
     for i in range(z.shape[0]):
@@ -1192,7 +1101,7 @@ def build_survival_heatmap_fig():
         go.Heatmap(
             z=z,
             x=["30 Tage", "90 Tage"],
-            y=plot_df["Team"],
+            y=heatmap_df["Team"],
             text=text,
             texttemplate="%{text}",
             textfont={"size": 12},
@@ -1218,52 +1127,6 @@ def build_survival_heatmap_fig():
     fig.update_xaxes(title_text="Horizont", title_font=dict(size=20), tickfont=dict(size=14))
     fig.update_yaxes(title_text="", tickfont=dict(size=14))
     return fig
-
-
-def build_survival_scatter_fig():
-    df = build_survival_risk_df()
-    if df.empty:
-        return go.Figure()
-
-    plot_df = df.copy()
-    plot_df["Risk30Pct"] = df["P(Gap in 30 Tagen)_value"] * 100
-    plot_df["AbwNum"] = pd.to_numeric(
-        plot_df["Abweichung"].astype(str).str.replace("+", "", regex=False),
-        errors="coerce",
-    ).fillna(0).abs()
-
-    color_map = {
-        "Kritisch": "#d62728",
-        "Beobachten": "#f2c94c",
-        "Normal": "#2ca02c",
-    }
-
-    fig = px.scatter(
-        plot_df,
-        x="Anomaliesignal",
-        y="Risk30Pct",
-        size="AbwNum",
-        color="Risikostatus",
-        hover_name="Team",
-        template="plotly_white",
-        color_discrete_map=color_map,
-        category_orders={"Risikostatus": ["Kritisch", "Beobachten", "Normal"]},
-    )
-
-    fig.update_traces(marker=dict(line=dict(width=1)))
-    fig.update_layout(
-        height=360,
-        font=dict(size=16),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=50, l=65, r=30),
-        legend_title_text="",
-    )
-    fig.update_yaxes(title_text="P(Gap in 30 Tagen) %", title_font=dict(size=20), tickfont=dict(size=14))
-    fig.update_xaxes(title_text="Anomaliesignal", title_font=dict(size=20), tickfont=dict(size=14))
-    return fig
-
-
 
 
 # ============================================================
@@ -1404,6 +1267,7 @@ def render_tab(tab):
         kpi = get_monitoring_kpis()
         alert_children = build_monitoring_alerts_children()
         monitoring_rows, monitoring_cols = get_monitoring_grid_data()
+        monitoring_cols = apply_grid_styles(monitoring_cols)
 
         return html.Div(
             [
@@ -1516,7 +1380,7 @@ def render_tab(tab):
         )
 
     if tab == "tab-forecast":
-        df_init = prepare_forecast_team_dataset(str(DEFAULT_TEAM)) if DEFAULT_TEAM else pd.DataFrame()
+        df_init = prepare_forecast_plot_dataset(str(DEFAULT_TEAM)) if DEFAULT_TEAM else pd.DataFrame()
         detail_rows, detail_cols = forecast_detail_grid_data(DEFAULT_TEAM)
         forecast_kpis = get_forecast_team_kpis(DEFAULT_TEAM, risk_df=build_team_risk_df())
 
@@ -1590,76 +1454,72 @@ def render_tab(tab):
             maxdev_val = f"{fmt_date(kpi['maxdev'])} (Δ={int(kpi['maxdev_days'])} Tage {kpi['maxdev_dir'] or ''})"
 
         return html.Div(
-        [
-            html.H4("🔎 Kritische Abweichungen und Warnsignale", style=TITLE_STYLE),
-
-            html.Div(
-                [
-                    html.Div(
-                        [
-                            html.Label("Glättung (Fenster)", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
-                            dcc.Slider(
-                                id="anom-window",
-                                min=3,
-                                max=30,
-                                step=1,
-                                value=8,
-                                marks={3: "3", 7: "7", 14: "14", 30: "30"},
-                            ),
-                        ],
-                        style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
-                    ),
-                    html.Div(
-                        [
-                            html.Label("Empfindlichkeit", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
-                            dcc.Slider(
-                                id="anom-sens",
-                                min=1,
-                                max=4,
-                                step=1,
-                                value=2,
-                                marks={1: "niedrig", 2: "mittel", 3: "hoch", 4: "sehr hoch"},
-                            ),
-                        ],
-                        style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
-                    ),
-                ],
-                style=CONTROL_ROW_STYLE,
-            ),
-
-            html.Div(
-                id="anom-kpi",
-                style=KPI_CONTAINER_STYLE_TIGHT,
-                children=[
-                    kpi_card("Warnsignale", str(kpi["count"])),
-                    kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
-                    kpi_card("Größte Abweichung", maxdev_val),
-                ],
-            ),
-
-            html.Div(
-                [html.Div(dcc.Graph(id="anom-fig", figure=fig), style=CHART_CARD_STYLE)],
-                style=SECTION_STYLE,
-            ),
-
-            html.Div(
-                id="anom-detail-section",
-                children=[
-                    html.Div(
-                        "Klicken Sie auf ein markiertes Warnsignal, um Details zu sehen.",
-                        id="anom-click-info",
-                        style={**TEXT_CARD_STYLE, "width": PAGE_WIDTH, "margin": "0 auto 10px auto"},
-                    ),
-                    html.Div(
-                        html.Div(make_grid("anom-detail-grid", [], [], width="100%"), style=CHART_CARD_STYLE),
-                        style=SECTION_STYLE,
-                    ),
-                ],
-                style={"display": "none"},
-            ),
-        ],
-        style=PAGE_STYLE,
-    )
+            [
+                html.H4("🔎 Kritische Abweichungen und Warnsignale", style=TITLE_STYLE),
+                html.Div(
+                    [
+                        html.Div(
+                            [
+                                html.Label("Glättung (Fenster)", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                                dcc.Slider(
+                                    id="anom-window",
+                                    min=3,
+                                    max=30,
+                                    step=1,
+                                    value=8,
+                                    marks={3: "3", 7: "7", 14: "14", 30: "30"},
+                                ),
+                            ],
+                            style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Empfindlichkeit", style={"fontSize": "18px", "fontWeight": "bold", "color": TEXT}),
+                                dcc.Slider(
+                                    id="anom-sens",
+                                    min=1,
+                                    max=4,
+                                    step=1,
+                                    value=2,
+                                    marks={1: "niedrig", 2: "mittel", 3: "hoch", 4: "sehr hoch"},
+                                ),
+                            ],
+                            style={**CONTROL_CARD_STYLE, "minWidth": "360px", "flex": "1"},
+                        ),
+                    ],
+                    style=CONTROL_ROW_STYLE,
+                ),
+                html.Div(
+                    id="anom-kpi",
+                    style=KPI_CONTAINER_STYLE_TIGHT,
+                    children=[
+                        kpi_card("Warnsignale", str(kpi["count"])),
+                        kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
+                        kpi_card("Größte Abweichung", maxdev_val),
+                    ],
+                ),
+                html.Div(
+                    [html.Div(dcc.Graph(id="anom-fig", figure=fig), style=CHART_CARD_STYLE)],
+                    style=SECTION_STYLE,
+                ),
+                html.Div(
+                    id="anom-detail-section",
+                    children=[
+                        html.Div(
+                            "Klicken Sie auf ein markiertes Warnsignal, um Details zu sehen.",
+                            id="anom-click-info",
+                            style={**TEXT_CARD_STYLE, "width": PAGE_WIDTH, "margin": "0 auto 10px auto"},
+                        ),
+                        html.Div(
+                            html.Div(make_grid("anom-detail-grid", [], [], width="100%"), style=CHART_CARD_STYLE),
+                            style=SECTION_STYLE,
+                        ),
+                    ],
+                    style={"display": "none"},
+                ),
+            ],
+            style=PAGE_STYLE,
+        )
 
     if tab == "tab-gap-survival":
         survival_rows, survival_cols = survival_risk_grid_data()
@@ -1676,8 +1536,8 @@ def render_tab(tab):
                 ),
                 html.Div(
                     [
-                        chart_panel("Anomaliesignal vs P(Gap in 90 Tagen)", build_survival_scatter_90_fig()),
-                        chart_panel("Anomaliesignal vs P(Gap in 30 Tagen)", build_survival_scatter_fig()),
+                        chart_panel("Anomaliesignal vs P(Gap in 90 Tagen)", build_survival_scatter_fig(90)),
+                        chart_panel("Anomaliesignal vs P(Gap in 30 Tagen)", build_survival_scatter_fig(30)),
                     ],
                     style=TWO_COLUMN_ROW_STYLE,
                 ),
@@ -1919,7 +1779,7 @@ Er dient als Vergleichsbasis für die Bewertung der Prognose.
 - **Abweichung** = Differenz zwischen Ist und Prognose
 - **Gap-Signal** = relative Stärke der Abweichung
 - **Zeit bis kritisch** = geschätzte Restzeit bis zu einem kritischen Zustand
-"""
+                            """
                         ),
                     ],
                     style=SECTION_STYLE,
@@ -1943,7 +1803,7 @@ Std - Standardabweichung, wie stark die Werte normalerweise um den Trend schwank
 
 ⚠️ **Hinweis:** Der letzte Tag kann vorläufig erhöhte Werte enthalten, da die Periode noch nicht abgeschlossen ist.  
 Die Signale dienen daher in erster Linie der Orientierung.
-"""
+                            """
                         ),
                     ],
                     style=SECTION_STYLE,
@@ -2121,6 +1981,7 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
     kpi = get_monitoring_kpis()
     alert_children = build_monitoring_alerts_children()
     rows, cols = get_monitoring_grid_data()
+    cols = apply_grid_styles(cols)
 
     return (
         kpi["luecken"],
@@ -2153,7 +2014,7 @@ def update_forecast_graph(team_value, tab):
     if tab != "tab-forecast" or team_value is None:
         return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
-    df_local = prepare_forecast_team_dataset(team_value)
+    df_local = prepare_forecast_plot_dataset(team_value)
     rows, cols = forecast_detail_grid_data(team_value)
     kpis = get_forecast_team_kpis(team_value, risk_df=build_team_risk_df())
 
@@ -2166,6 +2027,7 @@ def update_forecast_graph(team_value, tab):
         kpis["baseline"],
         kpis["max_risk"],
     )
+
 
 @app.callback(
     Output("anom-fig", "figure"),
@@ -2191,6 +2053,7 @@ def update_anomalies(window, sens, tab):
         kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
         kpi_card("Größte Abweichung", maxdev_val),
     ]
+
 
 @app.callback(
     Output("anom-detail-grid", "rowData"),
@@ -2227,7 +2090,7 @@ def update_anom_details(clickData, tab):
         return [], [], f"IPL konnte nicht geparst werden: {x_val}", hidden_style
 
     try:
-        df = get_raw_bestand_top10_by_ipl(ipl_db_value)
+        df = get_anomaly_bestand_detail(ipl_db_value)
     except Exception as e:
         return [], [], f"Fehler bei der Abfrage in DuckDB: {e}", visible_style
 
