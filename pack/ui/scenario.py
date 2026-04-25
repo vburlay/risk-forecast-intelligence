@@ -2,7 +2,12 @@ import plotly.graph_objects as go
 from dash import html, dcc
 
 from pack.ui.styles import *
-from pack.ui.components import *
+from pack.ui.components import (
+    section_title,
+    kpi_card,
+    make_grid,
+    apply_grid_styles,
+)
 
 from pack.services.simulation_service import (
     build_simulated_team_risk_df,
@@ -13,10 +18,11 @@ from pack.services.simulation_service import (
 )
 
 
-def build_intervention_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
+def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
     merged = get_simulation_chart_df(mode, intensity_pct, top_n=12)
 
     fig = go.Figure()
+
     if merged.empty:
         return fig
 
@@ -32,7 +38,7 @@ def build_intervention_chart(mode: str, intensity_pct: float, title: str) -> go.
         go.Bar(
             x=merged["Team"],
             y=merged["GapRiskValue_Simulation"] * 100,
-            name="Maßnahme",
+            name="Simulation",
         )
     )
 
@@ -47,13 +53,22 @@ def build_intervention_chart(mode: str, intensity_pct: float, title: str) -> go.
         legend_title_text="",
     )
 
-    fig.update_yaxes(title_text=title, title_font=dict(size=22), tickfont=dict(size=18))
-    fig.update_xaxes(title_text="Team", title_font=dict(size=22), tickfont=dict(size=16))
+    fig.update_yaxes(
+        title_text=title,
+        title_font=dict(size=22),
+        tickfont=dict(size=18),
+    )
+
+    fig.update_xaxes(
+        title_text="Team",
+        title_font=dict(size=22),
+        tickfont=dict(size=16),
+    )
 
     return fig
 
 
-def intervention_grid_data(mode: str, intensity_pct: float):
+def scenario_grid_data(mode: str, intensity_pct: float):
     display_df = get_simulation_grid_df(mode, intensity_pct)
 
     if display_df.empty:
@@ -73,7 +88,7 @@ def intervention_grid_data(mode: str, intensity_pct: float):
     return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
-def intervention_comparison_grid_data(mode: str, intensity_pct: float):
+def comparison_grid_data(mode: str, intensity_pct: float):
     comp = get_simulation_comparison_grid_df(mode, intensity_pct)
 
     if comp.empty:
@@ -82,33 +97,33 @@ def intervention_comparison_grid_data(mode: str, intensity_pct: float):
     column_defs = [
         {"headerName": "Team", "field": "Team", "minWidth": 140, "flex": 1},
         {"headerName": "Gap-Signal Ausgangslage", "field": "GapSignal_Baseline", "minWidth": 180, "flex": 1},
-        {"headerName": "Gap-Signal Maßnahme", "field": "GapSignal_Szenario", "minWidth": 180, "flex": 1},
+        {"headerName": "Gap-Signal Simulation", "field": "GapSignal_Szenario", "minWidth": 180, "flex": 1},
         {"headerName": "Delta Gap-Signal", "field": "DeltaGapSignal", "minWidth": 140, "flex": 1},
         {"headerName": "Status Ausgangslage", "field": "Risikostatus_Baseline", "minWidth": 170, "flex": 1},
-        {"headerName": "Status Maßnahme", "field": "Risikostatus_Szenario", "minWidth": 170, "flex": 1},
+        {"headerName": "Status Simulation", "field": "Risikostatus_Szenario", "minWidth": 170, "flex": 1},
         {"headerName": "Zeit Ausgangslage", "field": "ZeitBisKritisch_Baseline", "minWidth": 160, "flex": 1},
-        {"headerName": "Zeit Maßnahme", "field": "ZeitBisKritisch_Szenario", "minWidth": 160, "flex": 1},
+        {"headerName": "Zeit Simulation", "field": "ZeitBisKritisch_Szenario", "minWidth": 160, "flex": 1},
     ]
 
     return comp.to_dict("records"), apply_grid_styles(column_defs)
 
 
-def get_intervention_outputs(action: str, intensity_value):
-    intensity = float(intensity_value)
+def get_scenario_outputs(mode: str, intensity_pct: float):
+    intensity = float(intensity_pct)
 
-    sim_df = build_simulated_team_risk_df(action, intensity)
+    sim_df = build_simulated_team_risk_df(mode, intensity)
     sim_kpis = simulation_summary_kpis(sim_df)
 
-    fig = build_intervention_chart(action, intensity, "Gap-Signal (%)")
-    rows1, cols1 = intervention_grid_data(action, intensity)
-    rows2, cols2 = intervention_comparison_grid_data(action, intensity)
+    scenario_rows, scenario_cols = scenario_grid_data(mode, intensity)
+    comp_rows, comp_cols = comparison_grid_data(mode, intensity)
+    fig = build_simulation_chart(mode, intensity, "Gap-Signal (%)")
 
     return (
         fig,
-        rows1,
-        cols1,
-        rows2,
-        cols2,
+        scenario_rows,
+        scenario_cols,
+        comp_rows,
+        comp_cols,
         sim_kpis["max_risk"],
         sim_kpis["kritisch"],
         sim_kpis["beobachten"],
@@ -116,24 +131,24 @@ def get_intervention_outputs(action: str, intensity_value):
     )
 
 
-def render_intervention_tab():
-    sim_df = build_simulated_team_risk_df("reduce_gap", 15)
+def render_scenario_tab():
+    sim_df = build_simulated_team_risk_df("volume", 20)
     sim_kpis = simulation_summary_kpis(sim_df)
 
-    decision_rows, decision_cols = intervention_grid_data("reduce_gap", 15)
-    decision_comp_rows, decision_comp_cols = intervention_comparison_grid_data("reduce_gap", 15)
-    fig = build_intervention_chart("reduce_gap", 15, "Gap-Signal (%)")
+    scenario_rows, scenario_cols = scenario_grid_data("volume", 20)
+    comp_rows, comp_cols = comparison_grid_data("volume", 20)
+    fig = build_simulation_chart("volume", 20, "Gap-Signal (%)")
 
     return html.Div(
         [
-            html.H4("🎯 Maßnahmen & Wirkung", style=BIG_TITLE_STYLE),
+            html.H4("📊 Szenarien & Systemreaktion", style=BIG_TITLE_STYLE),
 
             html.Div(
                 [
                     html.Div(
                         [
                             html.Label(
-                                "Maßnahme",
+                                "Szenario",
                                 style={
                                     "fontWeight": "bold",
                                     "fontSize": "18px",
@@ -141,23 +156,22 @@ def render_intervention_tab():
                                 },
                             ),
                             dcc.Dropdown(
-                                id="decision-action",
+                                id="scenario-type",
                                 options=[
-                                    {"label": "Reduktion der Lücken-Tage", "value": "reduce_gap"},
-                                    {"label": "Stabilisierung", "value": "stabilize"},
-                                    {"label": "Forecast-Anpassung", "value": "forecast_shift"},
+                                    {"label": "Volumenanstieg", "value": "volume"},
+                                    {"label": "Trendbeschleunigung", "value": "trend"},
+                                    {"label": "Volatilitätsanstieg", "value": "volatility"},
                                 ],
-                                value="reduce_gap",
+                                value="volume",
                                 clearable=False,
                             ),
                         ],
                         style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px"},
                     ),
-
                     html.Div(
                         [
                             html.Label(
-                                "Stärke der Maßnahme",
+                                "Ausprägung",
                                 style={
                                     "fontWeight": "bold",
                                     "fontSize": "18px",
@@ -165,12 +179,12 @@ def render_intervention_tab():
                                 },
                             ),
                             dcc.Slider(
-                                id="decision-intensity",
+                                id="scenario-intensity",
                                 min=0,
                                 max=50,
                                 step=5,
-                                value=15,
-                                marks={0: "0%", 15: "15%", 50: "50%"},
+                                value=20,
+                                marks={0: "0%", 20: "20%", 50: "50%"},
                             ),
                         ],
                         style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px"},
@@ -182,24 +196,24 @@ def render_intervention_tab():
             html.Div(
                 [
                     kpi_card(
-                        "Maximales Restrisiko",
+                        "Maximales Risiko im Szenario",
                         sim_kpis["max_risk"],
-                        value_id="decision-kpi-max-risk",
+                        value_id="scenario-kpi-max-risk",
                     ),
                     kpi_card(
                         "Kritische Teams",
                         sim_kpis["kritisch"],
-                        value_id="decision-kpi-kritisch",
+                        value_id="scenario-kpi-kritisch",
                     ),
                     kpi_card(
                         "Teams unter Beobachtung",
                         sim_kpis["beobachten"],
-                        value_id="decision-kpi-beobachten",
+                        value_id="scenario-kpi-beobachten",
                     ),
                     kpi_card(
                         "Durchschnittliches Gap-Signal",
                         sim_kpis["avg_signal"],
-                        value_id="decision-kpi-avg-signal",
+                        value_id="scenario-kpi-avg-signal",
                     ),
                 ],
                 style=KPI_CONTAINER_STYLE,
@@ -207,9 +221,9 @@ def render_intervention_tab():
 
             html.Div(
                 [
-                    section_title("Erwartete Wirkung der Maßnahme"),
+                    section_title("Systemreaktion im Vergleich zur Ausgangslage"),
                     html.Div(
-                        dcc.Graph(id="decision-chart", figure=fig),
+                        dcc.Graph(id="scenario-chart", figure=fig),
                         style=CHART_CARD_STYLE,
                     ),
                 ],
@@ -218,9 +232,9 @@ def render_intervention_tab():
 
             html.Div(
                 [
-                    section_title("Ergebnisse nach Maßnahme"),
+                    section_title("Ergebnisse der Szenarioanalyse"),
                     html.Div(
-                        make_grid("decision-grid", decision_rows, decision_cols),
+                        make_grid("scenario-grid", scenario_rows, scenario_cols),
                         style=CHART_CARD_STYLE,
                     ),
                 ],
@@ -231,7 +245,7 @@ def render_intervention_tab():
                 [
                     section_title("Veränderung gegenüber der Ausgangslage"),
                     html.Div(
-                        make_grid("decision-compare-grid", decision_comp_rows, decision_comp_cols),
+                        make_grid("scenario-compare-grid", comp_rows, comp_cols),
                         style=CHART_CARD_STYLE,
                     ),
                 ],
