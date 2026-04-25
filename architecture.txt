@@ -297,3 +297,23 @@ Decision Intelligence System
 
 You are building:
 Applied Science Product
+
+
+========================
+15. Process flow
+===============
+app.py
+  ↓
+pack/ui/*
+  ↓
+pack/services/*
+  ↓
+pack/risk, pack/forecast, pack/anomaly, pack/simulation
+  ↓
+pack/data_access.py
+
+app.py — application entry point (Dash initialization and callback orchestration).
+pack/ui/* — presentation layer (layouts, components, visualizations).
+pack/services/* — service layer (data preparation and orchestration).
+pack/risk, forecast, anomaly, simulation — domain layer (core logic and computations).
+pack/data_access.py — data layer (database access and queries).

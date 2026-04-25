@@ -1,17 +1,18 @@
-from pathlib import Path
-import subprocess
 import threading
-import sys
-import time
 
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output, State, no_update, ALL, ctx
 
 from pack.config import APP_TITLE, DEFAULT_REFRESH_INTERVAL_MS
-from pack.data_access import duck_query_df, get_team_values, get_latest_ipl_value
+from pack.data_access import get_team_values
 
 from pack.ui.styles import *
 from pack.ui.components import *
+
+from pack.ui.refresh import (
+    get_refresh_state,
+    run_generate_mock_data,
+)
 
 from pack.ui.monitoring import (
     render_monitoring_tab,
@@ -77,104 +78,6 @@ SIDEBAR_ITEMS = [
 
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
-
-
-REFRESH_STATE = {
-    "running": False,
-    "last_started": None,
-    "last_finished": None,
-    "success": None,
-    "last_stand": None,
-}
-REFRESH_LOCK = threading.Lock()
-
-
-def set_refresh_state(**kwargs):
-    with REFRESH_LOCK:
-        REFRESH_STATE.update(kwargs)
-
-
-def get_refresh_state():
-    with REFRESH_LOCK:
-        return {
-            "running": REFRESH_STATE["running"],
-            "last_started": REFRESH_STATE["last_started"],
-            "last_finished": REFRESH_STATE["last_finished"],
-            "success": REFRESH_STATE["success"],
-            "last_stand": REFRESH_STATE["last_stand"],
-        }
-
-
-def wait_until_db_readable(max_wait_seconds: float = 8.0) -> bool:
-    started = time.time()
-
-    while time.time() - started < max_wait_seconds:
-        try:
-            duck_query_df("SELECT 1")
-            return True
-        except Exception:
-            time.sleep(0.25)
-
-    return False
-
-
-def run_generate_mock_data():
-    script_path = Path(__file__).with_name("generate_mock_data.py")
-
-    if not script_path.exists():
-        set_refresh_state(
-            running=False,
-            last_finished=time.strftime("%Y-%m-%d %H:%M:%S"),
-            success=False,
-        )
-        return
-
-    set_refresh_state(
-        running=True,
-        last_started=time.strftime("%Y-%m-%d %H:%M:%S"),
-        last_finished=None,
-        success=None,
-    )
-
-    try:
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            set_refresh_state(
-                running=False,
-                last_finished=time.strftime("%Y-%m-%d %H:%M:%S"),
-                success=False,
-            )
-            return
-
-        if not wait_until_db_readable():
-            set_refresh_state(
-                running=False,
-                last_finished=time.strftime("%Y-%m-%d %H:%M:%S"),
-                success=False,
-            )
-            return
-
-        latest_ipl = get_latest_ipl_value()
-
-        set_refresh_state(
-            running=False,
-            last_finished=time.strftime("%Y-%m-%d %H:%M:%S"),
-            success=True,
-            last_stand=latest_ipl,
-        )
-
-    except Exception:
-        set_refresh_state(
-            running=False,
-            last_finished=time.strftime("%Y-%m-%d %H:%M:%S"),
-            success=False,
-        )
 
 
 try:
@@ -414,7 +317,6 @@ def refresh_stand_line_on_open(active_tab, n_intervals):
 
     return get_monitoring_stand_text(state["last_stand"])
 
-
 @app.callback(
     Output("monitoring-kpi-luecken", "children"),
     Output("monitoring-kpi-abweichung", "children"),
@@ -460,7 +362,6 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
         cols,
     )
 
-
 @app.callback(
     Output("graph-forecast", "figure"),
     Output("forecast-detail-grid", "rowData"),
@@ -474,7 +375,15 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
 )
 def update_forecast_graph(team_value, tab):
     if tab != "tab-forecast" or team_value is None:
-        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
     df_local = prepare_forecast_plot_dataset(team_value)
     rows, cols = forecast_detail_grid_data(team_value)
@@ -502,14 +411,21 @@ def update_anomalies(window, sens, tab):
     if tab != "tab-anomalie":
         return no_update, no_update
 
-    result = get_anomaly_results(window=int(window), sensitivity_level=int(sens))
+    result = get_anomaly_results(
+        window=int(window),
+        sensitivity_level=int(sens),
+    )
+
     fig = result["figure"]
     kpi = result["kpi"]
 
     maxdev_val = "-"
 
     if kpi["maxdev_days"] is not None and kpi["maxdev"] is not None:
-        maxdev_val = f"{fmt_date(kpi['maxdev'])} (Δ={int(kpi['maxdev_days'])} Tage {kpi['maxdev_dir'] or ''})"
+        maxdev_val = (
+            f"{fmt_date(kpi['maxdev'])} "
+            f"(Δ={int(kpi['maxdev_days'])} Tage {kpi['maxdev_dir'] or ''})"
+        )
 
     return fig, [
         kpi_card("Warnsignale", str(kpi["count"])),
@@ -562,7 +478,16 @@ def update_anom_details(clickData, tab):
     if df.empty:
         return [], [], f"Keine Daten in raw_bestand für IPL={ipl_db_value} gefunden.", visible_style
 
-    col_defs = [{"headerName": c, "field": c, "minWidth": 160, "flex": 1} for c in df.columns]
+    col_defs = [
+        {
+            "headerName": c,
+            "field": c,
+            "minWidth": 160,
+            "flex": 1,
+        }
+        for c in df.columns
+    ]
+
     iso_str = fmt_date(pd.to_datetime(str(x_val), errors="coerce"))
 
     return (
@@ -589,7 +514,17 @@ def update_anom_details(clickData, tab):
 )
 def update_scenario_tab(scenario_type, scenario_intensity, tab):
     if tab != "tab-scenario":
-        return no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
     return get_scenario_outputs(scenario_type, scenario_intensity)
 
@@ -610,10 +545,19 @@ def update_scenario_tab(scenario_type, scenario_intensity, tab):
 )
 def update_decision_tab(decision_action, decision_intensity, tab):
     if tab != "tab-decision":
-        return no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
     return get_intervention_outputs(decision_action, decision_intensity)
-
 
 if __name__ == "__main__":
     app.run(debug=True)
