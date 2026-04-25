@@ -67,7 +67,10 @@ def calculate_days_to_critical(team_hist: pd.DataFrame) -> str:
 
     df = df.dropna(subset=["IPL_dt"]).sort_values("IPL_dt").tail(6)
     df["TAGEN"] = pd.to_numeric(df["TAGEN"], errors="coerce")
-    df["PROGNOSE"] = pd.to_numeric(df.get("PROGNOSE"), errors="coerce")
+    if "PROGNOSE" in df.columns:
+        df["PROGNOSE"] = pd.to_numeric(df["PROGNOSE"], errors="coerce")
+    else:
+        df["PROGNOSE"] = 0.0
     df = df.dropna(subset=["TAGEN"])
 
     if len(df) < 2:

@@ -72,8 +72,8 @@ def compute_anomaly_score(
     w = int(max(3, window))
     mp = max(3, w // 2) if min_periods is None else int(min_periods)
 
-    baseline = values.rolling(w, min_periods=mp).mean()
-    rolling_std = values.rolling(w, min_periods=mp).std()
+    baseline = values.rolling(w, min_periods=mp).mean().shift(1)
+    rolling_std = values.rolling(w, min_periods=mp).std().shift(1)
 
     denom = rolling_std.replace(0, np.nan)
     score = (values - baseline) / denom
@@ -158,7 +158,7 @@ def anomaly_figure(
         anom_only = data.loc[data["is_anomaly"]].copy()
         idx_max = anom_only["abs_dev"].idxmax()
         max_dev_x = data.loc[idx_max, "x"]
-        max_dev_days = float(data.loc[idx_max, "abs_dev"])
+        max_dev_days = round(float(data.loc[idx_max, "abs_dev"]), 2)
         max_dev_dir = "↑" if float(data.loc[idx_max, "dev_signed"]) >= 0 else "↓"
 
     fig = go.Figure()

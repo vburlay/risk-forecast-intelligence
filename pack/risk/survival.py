@@ -51,6 +51,16 @@ def attach_survival_metrics(base_risk_df: pd.DataFrame) -> pd.DataFrame:
     if base_risk_df.empty:
         return pd.DataFrame()
 
+    required_cols = {"GapRiskValue", "Anomaliesignal", "ZeitBisKritisch"}
+    missing = required_cols - set(base_risk_df.columns)
+
+    if missing:
+        raise ValueError(
+            f"Survival metrics require columns {sorted(required_cols)}. "
+            f"Missing: {sorted(missing)}. "
+            f"Available: {list(base_risk_df.columns)}"
+        )
+
     df = base_risk_df.copy()
 
     p30, p90 = compute_survival_probabilities(
