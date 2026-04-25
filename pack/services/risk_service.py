@@ -18,7 +18,10 @@ def build_team_risk_df() -> pd.DataFrame:
     df = load_team_pg_data()
     if df.empty:
         return pd.DataFrame()
-
+    required_cols = {"TEAM", "TAGEN", "PROGNOSE"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        return pd.DataFrame()
     if "IPL_dt" not in df.columns:
         df["IPL_dt"] = pd.to_datetime(df.get("IPL"), errors="coerce")
 
@@ -121,6 +124,7 @@ def build_survival_risk_df() -> pd.DataFrame:
     )
     return out
 def get_survival_grid_df() -> pd.DataFrame:
+    
     df = build_survival_risk_df()
     if df.empty:
         return pd.DataFrame()
