@@ -18,10 +18,8 @@ SIDEBAR_ITEMS = [
     ("tab-description", "📘 Beschreibung & Interpretation"),
 ]
 
-
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
-
 
 try:
     TEAM_VALUES = get_team_values()
@@ -107,14 +105,10 @@ app.layout = html.Div(
     ],
     style=APP_SHELL_STYLE,
 )
-
-
 register_callbacks(
     app=app,
     team_values=TEAM_VALUES,
     default_team=DEFAULT_TEAM,
 )
-
-
 if __name__ == "__main__":
     app.run(debug=True)
