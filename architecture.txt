@@ -317,3 +317,4 @@ pack/ui/* — presentation layer (layouts, components, visualizations).
 pack/services/* — service layer (data preparation and orchestration).
 pack/risk, forecast, anomaly, simulation — domain layer (core logic and computations).
 pack/data_access.py — data layer (database access and queries).
+
