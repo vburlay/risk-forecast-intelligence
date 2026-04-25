@@ -16,6 +16,11 @@ from pack.data_access import duck_query_df, get_team_values, get_latest_ipl_valu
 
 from pack.ui.styles import *
 from pack.ui.components import *
+from pack.ui.monitoring import (
+    render_monitoring_tab,
+    build_monitoring_main_fig,
+    build_monitoring_alerts_children,
+)
 
 from pack.services.anomaly_service import get_anomaly_results, get_anomaly_bestand_detail
 from pack.services.forecast_service import (
@@ -25,10 +30,8 @@ from pack.services.forecast_service import (
 )
 from pack.services.monitoring_service import (
     get_monitoring_kpis,
-    get_monitoring_alerts_data,
     get_monitoring_stand_text,
     get_monitoring_grid_data,
-    get_monitoring_chart_data,
 )
 from pack.services.simulation_service import (
     build_simulated_team_risk_df,
@@ -47,9 +50,6 @@ from pack.services.risk_service import (
 from pack.risk.core import combined_risikostatus, calculate_days_to_critical
 
 
-# ============================================================
-# Sidebar
-# ============================================================
 SIDEBAR_ITEMS = [
     ("tab-monitoring", "📊 Steuerung"),
     ("tab-forecast", "📈 Prognose"),
@@ -61,16 +61,10 @@ SIDEBAR_ITEMS = [
 ]
 
 
-# ============================================================
-# App
-# ============================================================
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
 
 
-# ============================================================
-# Refresh State
-# ============================================================
 REFRESH_STATE = {
     "running": False,
     "last_started": None,
@@ -166,9 +160,6 @@ def run_generate_mock_data():
         )
 
 
-# ============================================================
-# General helpers
-# ============================================================
 def ipl_iso_to_db_format(ipl_iso: str) -> str:
     dt = pd.to_datetime(ipl_iso, errors="coerce")
     return "" if pd.isna(dt) else dt.strftime("%Y%m%d")
@@ -194,119 +185,6 @@ def fmt_date(v):
         return str(v)
 
 
-def get_delta_symbol(val: str) -> str:
-    try:
-        num = int(str(val).replace("+", ""))
-        return "Δ" if num >= 0 else "∇"
-    except Exception:
-        return "Δ"
-
-
-def get_delta_color(val: str) -> str:
-    try:
-        num = int(str(val).replace("+", ""))
-        return DELTA_UP_COLOR if num >= 0 else DELTA_DOWN_COLOR
-    except Exception:
-        return TEXT
-
-
-def build_monitoring_alerts_children():
-    data = get_monitoring_alerts_data()
-
-    top_neg = data["top_neg"]
-    top_pos = data["top_pos"]
-    n_crit = data["n_crit"]
-
-    if top_neg is None and top_pos is None and n_crit == 0:
-        return [
-            html.Span(
-                "Keine aktuellen Hinweise",
-                style={"color": TEXT, "fontWeight": "bold"},
-            )
-        ]
-
-    children = []
-
-    def add_separator():
-        children.append(
-            html.Span(
-                " ; ",
-                style={
-                    "color": TEXT,
-                    "fontWeight": "bold",
-                    "display": "inline-block",
-                    "marginLeft": "12px",
-                    "marginRight": "12px",
-                },
-            )
-        )
-
-    def add_team_part(team_value: str, abweichung: str):
-        symbol = get_delta_symbol(abweichung)
-        color = get_delta_color(abweichung)
-
-        children.extend(
-            [
-                html.Span(
-                    "Team:",
-                    style={
-                        "color": TEXT,
-                        "fontWeight": "bold",
-                        "display": "inline-block",
-                        "marginRight": "6px",
-                    },
-                ),
-                html.Span(
-                    str(team_value),
-                    style={
-                        "color": TEXT,
-                        "fontWeight": "bold",
-                        "display": "inline-block",
-                        "marginRight": "8px",
-                    },
-                ),
-                html.Span(
-                    f"{symbol} {abweichung}",
-                    style={
-                        "color": color,
-                        "fontWeight": "bold",
-                        "display": "inline-block",
-                        "marginRight": "2px",
-                    },
-                ),
-            ]
-        )
-
-    if top_neg is not None:
-        add_team_part(top_neg["Team"], top_neg["Abweichung"])
-
-    if top_pos is not None:
-        if children:
-            add_separator()
-        add_team_part(top_pos["Team"], top_pos["Abweichung"])
-
-    if n_crit > 0:
-        if children:
-            add_separator()
-
-        children.append(
-            html.Span(
-                f"{n_crit} Team(s) befinden sich aktuell im kritischen Zustand.",
-                style={
-                    "color": TEXT,
-                    "fontWeight": "bold",
-                    "display": "inline-block",
-                    "marginLeft": "2px",
-                },
-            )
-        )
-
-    return children
-
-
-# ============================================================
-# Team init
-# ============================================================
 try:
     TEAM_VALUES = get_team_values()
 except Exception:
@@ -315,9 +193,6 @@ except Exception:
 DEFAULT_TEAM = TEAM_VALUES[0] if TEAM_VALUES else None
 
 
-# ============================================================
-# Forecast grid
-# ============================================================
 def forecast_detail_grid_data(team_value: Optional[str]):
     df = build_forecast_detail_df(
         team_value=team_value,
@@ -359,9 +234,6 @@ def forecast_detail_grid_data(team_value: Optional[str]):
     return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
-# ============================================================
-# Simulation grids and charts
-# ============================================================
 def build_simulation_chart(mode: str, intensity_pct: float, title: str) -> go.Figure:
     merged = get_simulation_chart_df(mode, intensity_pct, top_n=12)
 
@@ -442,9 +314,6 @@ def comparison_grid_data(mode: str, intensity_pct: float):
     return comp.to_dict("records"), apply_grid_styles(column_defs)
 
 
-# ============================================================
-# Risk grids and charts
-# ============================================================
 def survival_risk_grid_data():
     display_df = get_survival_grid_df()
 
@@ -466,9 +335,6 @@ def survival_risk_grid_data():
     return display_df.to_dict("records"), apply_grid_styles(column_defs)
 
 
-# ============================================================
-# Charts
-# ============================================================
 def build_forecast_fig(df_filtered: pd.DataFrame):
     if df_filtered.empty:
         return go.Figure()
@@ -526,51 +392,6 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
 
     fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
     fig.update_xaxes(title_text=x_title, title_font=dict(size=26), tickfont=dict(size=22))
-
-    return fig
-
-
-def build_monitoring_main_fig():
-    plot_df = get_monitoring_chart_data()
-
-    fig = go.Figure()
-    if plot_df.empty:
-        return fig
-
-    fig.add_trace(
-        go.Scatter(
-            x=plot_df["x"],
-            y=plot_df["TAGEN"],
-            mode="lines+markers",
-            name="Ist",
-            line=dict(width=3),
-            marker=dict(size=8),
-        )
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=plot_df["x"],
-            y=plot_df["PROGNOSE"],
-            mode="lines+markers",
-            name="Forecast",
-            line=dict(width=3, dash="dash"),
-            marker=dict(size=8),
-        )
-    )
-
-    fig.update_layout(
-        template="plotly_white",
-        height=520,
-        font=dict(size=20),
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        margin=dict(t=20, b=60, l=80, r=50),
-        legend_title_text="",
-    )
-
-    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
-    fig.update_xaxes(title_text="IPL", title_font=dict(size=26), tickfont=dict(size=22))
 
     return fig
 
@@ -720,9 +541,6 @@ def build_survival_heatmap_fig():
     return fig
 
 
-# ============================================================
-# Layout
-# ============================================================
 app.layout = html.Div(
     [
         dcc.Store(id="active-tab-store", data="tab-monitoring"),
@@ -789,9 +607,6 @@ app.layout = html.Div(
 )
 
 
-# ============================================================
-# Sidebar callbacks
-# ============================================================
 @app.callback(
     Output("active-tab-store", "data"),
     Input({"type": "sidebar-tab", "index": ALL}, "n_clicks"),
@@ -847,129 +662,13 @@ def update_sidebar_tabs(active_tab, collapsed):
     return children, styles, titles
 
 
-# ============================================================
-# Tabs render
-# ============================================================
 @app.callback(
     Output("tabs-content", "children"),
     Input("active-tab-store", "data"),
 )
 def render_tab(tab):
     if tab == "tab-monitoring":
-        kpi = get_monitoring_kpis()
-        alert_children = build_monitoring_alerts_children()
-        monitoring_rows, monitoring_cols = get_monitoring_grid_data()
-        monitoring_cols = apply_grid_styles(monitoring_cols)
-
-        return html.Div(
-            [
-                html.Div(
-                    [
-                        html.Button(
-                            "🔄 Aktualisieren",
-                            id="refresh-data-btn",
-                            n_clicks=0,
-                            style={
-                                **REFRESH_BUTTON_STYLE,
-                                "position": "absolute",
-                                "left": "0",
-                                "top": "50%",
-                                "transform": "translateY(-50%)",
-                            },
-                        ),
-                        html.H4(
-                            "📊 Operative Steuerung",
-                            style={**BIG_TITLE_STYLE, "margin": "0", "textAlign": "center"},
-                        ),
-                    ],
-                    style={
-                        "width": PAGE_WIDTH,
-                        "margin": "0 auto 8px auto",
-                        "position": "relative",
-                        "display": "flex",
-                        "justifyContent": "center",
-                        "alignItems": "center",
-                        "minHeight": "40px",
-                    },
-                ),
-                html.Div(
-                    id="monitoring-stand-line",
-                    children=get_monitoring_stand_text(get_refresh_state()["last_stand"]),
-                    style=MONITORING_INFO_LINE_STYLE,
-                ),
-                html.Div(
-                    [
-                        kpi_card("Aktuelle Lücken-Tage", kpi["luecken"], value_id="monitoring-kpi-luecken"),
-                        kpi_card("Forecast-Abweichung", kpi["abweichung"], value_id="monitoring-kpi-abweichung"),
-                        kpi_card("Kritische Signale", kpi["auffaelligkeiten"], value_id="monitoring-kpi-auffaelligkeiten"),
-                        kpi_card("Teams mit erhöhtem Risiko", kpi["teams_risk"], value_id="monitoring-kpi-teams-risk"),
-                        kpi_card("Maximales Risiko", kpi["max_risk"], value_id="monitoring-kpi-max-risk"),
-                    ],
-                    style=KPI_CONTAINER_STYLE,
-                ),
-                html.Div(
-                    [
-                        section_title("Aktuelle Entwicklung im Vergleich zum Forecast"),
-                        html.Div(
-                            dcc.Graph(id="monitoring-main-graph", figure=build_monitoring_main_fig()),
-                            style=CHART_CARD_STYLE,
-                        ),
-                    ],
-                    style=SECTION_STYLE,
-                ),
-                html.Div(
-                    html.Div(
-                        [
-                            html.Span(
-                                "⚠️ Kritische Hinweise:",
-                                style={
-                                    "fontSize": "20px",
-                                    "fontWeight": "bold",
-                                    "color": TEXT,
-                                    "marginRight": "12px",
-                                },
-                            ),
-                            html.Div(
-                                id="monitoring-alerts-list",
-                                children=alert_children,
-                                style={
-                                    "fontSize": "18px",
-                                    "fontWeight": "bold",
-                                    "color": TEXT,
-                                    "display": "inline-flex",
-                                    "flexWrap": "nowrap",
-                                    "alignItems": "center",
-                                    "whiteSpace": "nowrap",
-                                    "overflowX": "auto",
-                                    "gap": "0px",
-                                },
-                            ),
-                        ],
-                        style={
-                            **CARD_STYLE,
-                            "padding": "12px 16px",
-                            "display": "flex",
-                            "alignItems": "center",
-                            "justifyContent": "flex-start",
-                            "borderLeft": f"5px solid {ACCENT}",
-                            "overflowX": "auto",
-                        },
-                    ),
-                    style=SECTION_STYLE,
-                ),
-                html.Div(
-                    [
-                        section_title("Risikobewertung nach Teams"),
-                        html.Div(
-                            make_grid("monitoring-risk-grid", monitoring_rows, monitoring_cols),
-                            style=CHART_CARD_STYLE,
-                        ),
-                    ],
-                    style=SECTION_STYLE,
-                ),
-            ],
-            style=PAGE_STYLE,
-        )
+        return render_monitoring_tab(get_refresh_state)
 
     if tab == "tab-forecast":
         df_init = prepare_forecast_plot_dataset(str(DEFAULT_TEAM)) if DEFAULT_TEAM else pd.DataFrame()
@@ -1370,11 +1069,6 @@ Der Baseline Forecast basiert typischerweise auf:
 
 Er dient als Vergleichsbasis für die Bewertung der Prognose.
 
-**Interpretation im Vergleich**
-- **TAGEN vs Baseline** → zeigt, ob eine Entwicklung ungewöhnlich ist
-- **TAGEN vs Prognose** → zeigt, ob die Prognose korrekt ist
-- **Prognose vs Baseline** → zeigt, ob das Modell eine Veränderung erwartet
-
 **Interpretation der Kennzahlen**
 - **Tage** = aktueller beobachteter Wert
 - **Prognose** = erwarteter Wert
@@ -1394,18 +1088,13 @@ Er dient als Vergleichsbasis für die Bewertung der Prognose.
                             r"""
 **Warnsignale** sind Zeitpunkte, an denen sich die Anzahl der **TAGEN** deutlich vom üblichen Verlauf (**Trend**) unterscheidet.
 
-Solche Abweichungen können auf **besondere Ereignisse, Ausreißer** oder **ungewöhnliche Entwicklungen** hinweisen.
-
 Der Vergleich erfolgt relativ zur üblichen Schwankung über folgenden Score:
 
 $$
 \lvert score \rvert = \left| \frac{TAGEN - Trend}{Std} \right|
 $$
 
-Std - Standardabweichung, wie stark die Werte normalerweise um den Trend schwanken
-
-⚠️ **Hinweis:** Der letzte Tag kann vorläufig erhöhte Werte enthalten, da die Periode noch nicht abgeschlossen ist.  
-Die Signale dienen daher in erster Linie der Orientierung.
+⚠️ **Hinweis:** Der letzte Tag kann vorläufig erhöhte Werte enthalten, da die Periode noch nicht abgeschlossen ist.
                             """
                         ),
                     ],
@@ -1418,22 +1107,10 @@ Die Signale dienen daher in erster Linie der Orientierung.
                             """
 **Zukunftsrisiken** beschreiben die geschätzte Eintrittswahrscheinlichkeit eines kritischen Gap-Ereignisses innerhalb definierter Zeithorizonte.
 
-Die fachliche Logik folgt der analytischen Kette:
-
-**Operative Steuerung → Erwartete Entwicklung → Kritische Abweichungen → Zukunftsrisiko**
-
-**Bedeutung für das Business**
-- **Operative Steuerung** zeigt die aktuelle Situation
-- **Erwartete Entwicklung** beschreibt die wahrscheinliche Dynamik
-- **Kritische Abweichungen** machen Instabilität sichtbar
-- **Zukunftsrisiken** verdichten diese Informationen zu einer priorisierbaren Zukunftssicht
-- **GAP event** = Abweichungsereignis
-
 **Interpretation der Kennzahlen**
 - **P(Gap in 30 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 30 Tagen
 - **P(Gap in 90 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 90 Tagen
 - **Erwartete Zeit bis zum Gap** = erwarteter Zeitraum bis zum nächsten kritischen Ereignis.
-  Wahrscheinlichster Zeitraum bis zum Eintritt eines Gap-Ereignisses unter Berücksichtigung der aktuellen Risikosignale
                             """
                         ),
                     ],
@@ -1445,11 +1122,6 @@ Die fachliche Logik folgt der analytischen Kette:
                         description_card(
                             """
 **Die Szenarioanalyse** erweitert das System um eine strukturierte **What-if-Perspektive**.
-
-**Ziel**
-- verstehen, wie empfindlich das System auf alternative Entwicklungen reagiert
-- Auswirkungen von Volumenanstieg, Trenddynamik und Volatilität sichtbar machen
-- Unterschiede zur Ausgangslage transparent vergleichen
 
 **Interpretation**
 - **Volumenanstieg** erhöht die Belastung direkt
@@ -1467,11 +1139,6 @@ Die fachliche Logik folgt der analytischen Kette:
                             """
 **Die Maßnahmenanalyse** bewertet konkrete Eingriffe und deren Wirkung auf Risiko, Status und Dringlichkeit.
 
-**Ziel**
-- Handlungsoptionen transparent vergleichen
-- erwartete Wirkung auf kritische Teams sichtbar machen
-- Restrisiko nach Intervention abschätzen
-
 **Interpretation**
 - **Reduktion der Lücken-Tage** senkt den aktuellen Belastungswert direkt
 - **Stabilisierung** reduziert die Differenz zum Forecast
@@ -1488,9 +1155,6 @@ Die fachliche Logik folgt der analytischen Kette:
     return html.Div(style=PAGE_STYLE)
 
 
-# ============================================================
-# Refresh callbacks
-# ============================================================
 @app.callback(
     Output("refresh-poll-interval", "disabled"),
     Input("refresh-data-btn", "n_clicks"),
@@ -1602,9 +1266,6 @@ def refresh_monitoring_tab_after_load(data_version, active_tab):
     )
 
 
-# ============================================================
-# Content callbacks
-# ============================================================
 @app.callback(
     Output("graph-forecast", "figure"),
     Output("forecast-detail-grid", "rowData"),
