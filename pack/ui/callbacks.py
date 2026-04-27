@@ -40,6 +40,7 @@ from pack.ui.description import render_description_tab
 from pack.ui.components import (
     kpi_card,
     sidebar_button_style,
+    apply_grid_styles
 )
 
 from pack.ui.styles import (
