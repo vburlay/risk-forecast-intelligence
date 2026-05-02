@@ -5,18 +5,8 @@ from pack.data_access import get_team_values
 
 from pack.ui.styles import *
 from pack.ui.components import sidebar_button_style
-from pack.ui.callbacks import register_callbacks
+from pack.ui.callbacks import register_callbacks, SIDEBAR_ITEMS
 
-
-SIDEBAR_ITEMS = [
-    ("tab-monitoring", "📊 Steuerung"),
-    ("tab-forecast", "📈 Prognose"),
-    ("tab-anomalie", "🔎 Anomalien"),
-    ("tab-gap-survival", "🧬 Risiko"),
-    ("tab-scenario", "📊 Szenarien"),
-    ("tab-decision", "🎯 Maßnahmen"),
-    ("tab-description", "📘 Beschreibung & Interpretation"),
-]
 
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server

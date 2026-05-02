@@ -49,7 +49,6 @@ def forecast_detail_grid_data(team_value: Optional[str]):
     display_df = df[
         [
             "IPL",
-            "TEAM",
             "TAGEN",
             "PROGNOSE",
             "BaselineForecast",
@@ -63,7 +62,6 @@ def forecast_detail_grid_data(team_value: Optional[str]):
 
     column_defs = [
         {"headerName": "IPL", "field": "IPL", "minWidth": 150, "flex": 1},
-        {"headerName": "Team", "field": "TEAM", "minWidth": 140, "flex": 1},
         {"headerName": "Tage", "field": "TAGEN", "minWidth": 120, "flex": 1},
         {"headerName": "Prognose", "field": "PROGNOSE", "minWidth": 140, "flex": 1},
         {"headerName": "Baseline Forecast", "field": "BaselineForecast", "minWidth": 160, "flex": 1},
