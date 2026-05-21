@@ -232,9 +232,9 @@ def render_scenario_tab():
 
             html.Div(
                 [
-                    section_title("Ergebnisse der Szenarioanalyse"),
+                    section_title("Wirkung gegenüber der Ausgangslage"),
                     html.Div(
-                        make_grid("scenario-grid", scenario_rows, scenario_cols),
+                        make_grid("scenario-compare-grid", comp_rows, comp_cols),
                         style=CHART_CARD_STYLE,
                     ),
                 ],
@@ -242,13 +242,29 @@ def render_scenario_tab():
             ),
 
             html.Div(
-                [
-                    section_title("Veränderung gegenüber der Ausgangslage"),
-                    html.Div(
-                        make_grid("scenario-compare-grid", comp_rows, comp_cols),
-                        style=CHART_CARD_STYLE,
-                    ),
-                ],
+                html.Details(
+                    [
+                        html.Summary(
+                            "Details der Szenarioanalyse",
+                            style={
+                                "fontSize": "20px",
+                                "fontWeight": "bold",
+                                "color": TEXT,
+                                "cursor": "pointer",
+                                "marginBottom": "12px",
+                            },
+                        ),
+                        html.Div(
+                            make_grid("scenario-grid", scenario_rows, scenario_cols),
+                            style=CHART_CARD_STYLE,
+                        ),
+                    ],
+                    open=False,
+                    style={
+                        **CARD_STYLE,
+                        "padding": "14px 16px",
+                    },
+                ),
                 style=SECTION_STYLE,
             ),
         ],
