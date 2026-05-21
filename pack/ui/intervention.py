@@ -93,11 +93,31 @@ def intervention_comparison_grid_data(mode: str, intensity_pct: float):
     return comp.to_dict("records"), apply_grid_styles(column_defs)
 
 
+def count_improved_teams(action: str, intensity_pct: float) -> str:
+    comp = get_simulation_comparison_grid_df(action, intensity_pct)
+
+    if comp.empty:
+        return "—"
+
+    status_rank = {
+        "Normal": 0,
+        "Beobachten": 1,
+        "Kritisch": 2,
+    }
+
+    baseline = comp["Risikostatus_Baseline"].map(status_rank)
+    after_action = comp["Risikostatus_Szenario"].map(status_rank)
+
+    improved = (after_action < baseline).fillna(False).sum()
+    return str(int(improved))
+
+
 def get_intervention_outputs(action: str, intensity_value):
     intensity = float(intensity_value)
 
     sim_df = build_simulated_team_risk_df(action, intensity)
     sim_kpis = simulation_summary_kpis(sim_df)
+    improved_teams = count_improved_teams(action, intensity)
 
     fig = build_intervention_chart(action, intensity, "Gap-Signal (%)")
     rows1, cols1 = intervention_grid_data(action, intensity)
@@ -112,13 +132,14 @@ def get_intervention_outputs(action: str, intensity_value):
         sim_kpis["max_risk"],
         sim_kpis["kritisch"],
         sim_kpis["beobachten"],
-        sim_kpis["avg_signal"],
+        improved_teams,
     )
 
 
 def render_intervention_tab():
     sim_df = build_simulated_team_risk_df("reduce_gap", 15)
     sim_kpis = simulation_summary_kpis(sim_df)
+    improved_teams = count_improved_teams("reduce_gap", 15)
 
     decision_rows, decision_cols = intervention_grid_data("reduce_gap", 15)
     decision_comp_rows, decision_comp_cols = intervention_comparison_grid_data("reduce_gap", 15)
@@ -197,8 +218,8 @@ def render_intervention_tab():
                         value_id="decision-kpi-beobachten",
                     ),
                     kpi_card(
-                        "Durchschnittliches Gap-Signal",
-                        sim_kpis["avg_signal"],
+                        "Verbesserte Teams",
+                        improved_teams,
                         value_id="decision-kpi-avg-signal",
                     ),
                 ],
