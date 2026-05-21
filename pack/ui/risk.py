@@ -189,12 +189,81 @@ def build_survival_heatmap_fig():
     return fig
 
 
+def build_risk_signal_summary_block():
+    df = get_survival_grid_df()
+
+    if df.empty:
+        kritisch = "—"
+        beobachten = "—"
+        normal = "—"
+        highest_p30 = "—"
+    else:
+        kritisch = str(int((df["Risikostatus"] == "Kritisch").sum()))
+        beobachten = str(int((df["Risikostatus"] == "Beobachten").sum()))
+        normal = str(int((df["Risikostatus"] == "Normal").sum()))
+
+        if "P(Gap in 30 Tagen)" in df.columns:
+            highest_p30 = df["P(Gap in 30 Tagen)"].iloc[0]
+        else:
+            highest_p30 = "—"
+
+    return html.Div(
+        [
+            section_title("Risikosignale im Überblick"),
+            html.Div(
+                [
+                    kpi_card("Kritische Teams", kritisch),
+                    kpi_card("Teams unter Beobachtung", beobachten),
+                    kpi_card("Höchstes 30-Tage-Signal", highest_p30),
+                    kpi_card("Normale Teams", normal),
+                ],
+                style=KPI_CONTAINER_STYLE_TIGHT,
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        "Statuslogik",
+                        style={
+                            "fontWeight": "bold",
+                            "fontSize": "18px",
+                            "color": TEXT,
+                            "marginBottom": "8px",
+                        },
+                    ),
+                    html.Div("Normal: Gap < 10% und Anomaliesignal < 1.5"),
+                    html.Div("Beobachten: Gap >= 10% oder Anomaliesignal >= 1.5"),
+                    html.Div("Kritisch: Gap >= 20% oder Anomaliesignal >= 3.0"),
+                ],
+                style={
+                    **TEXT_CARD_STYLE,
+                    "fontSize": "16px",
+                    "lineHeight": "1.5",
+                },
+            ),
+        ],
+        style=SECTION_STYLE,
+    )
+
+
 def render_risk_tab():
     survival_rows, survival_cols = survival_risk_grid_data()
 
     return html.Div(
         [
             html.H4("🧬 Zukunftsrisiken", style=BIG_TITLE_STYLE),
+
+            html.Div(
+                "Hinweis: Die Risiko-Wahrscheinlichkeiten sind heuristische Signale zur "
+                "Entscheidungsunterstützung. Sie dienen der Priorisierung und sind kein "
+                "validiertes Survival-Modell.",
+                style={
+                    **TEXT_CARD_STYLE,
+                    "width": PAGE_WIDTH,
+                    "margin": "0 auto 18px auto",
+                    "fontSize": "16px",
+                    "lineHeight": "1.45",
+                },
+            ),
 
             html.Div(
                 [
@@ -204,13 +273,7 @@ def render_risk_tab():
                 style=TWO_COLUMN_ROW_STYLE,
             ),
 
-            html.Div(
-                [
-                    chart_panel("Anomaliesignal vs P(Gap in 90 Tagen)", build_survival_scatter_fig(90)),
-                    chart_panel("Anomaliesignal vs P(Gap in 30 Tagen)", build_survival_scatter_fig(30)),
-                ],
-                style=TWO_COLUMN_ROW_STYLE,
-            ),
+            build_risk_signal_summary_block(),
 
             html.Div(
                 [
