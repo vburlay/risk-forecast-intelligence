@@ -226,7 +226,7 @@ def render_forecast_tab(default_team, team_values):
 
             html.Div(
                 [
-                    section_title("Erwartete Entwicklung je Team"),
+                    section_title("Verlauf im Vergleich zur Prognose"),
                     html.Div(
                         dcc.Graph(
                             id="graph-forecast",
