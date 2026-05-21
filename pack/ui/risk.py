@@ -209,7 +209,6 @@ def build_risk_signal_summary_block():
 
     return html.Div(
         [
-            section_title("Risikosignale im Überblick"),
             html.Div(
                 [
                     kpi_card("Kritische Teams", kritisch),
@@ -235,9 +234,19 @@ def build_risk_signal_summary_block():
                             "marginBottom": "8px",
                         },
                     ),
-                    html.Div("Normal: Gap < 10% und Anomaliesignal < 1.5"),
-                    html.Div("Beobachten: Gap >= 10% oder Anomaliesignal >= 1.5"),
-                    html.Div("Kritisch: Gap >= 20% oder Anomaliesignal >= 3.0"),
+                    html.Div(
+                        [
+                            html.Span("Normal: Gap < 10% und Anomaliesignal < 1.5"),
+                            html.Span("Beobachten: Gap >= 10% oder Anomaliesignal >= 1.5"),
+                            html.Span("Kritisch: Gap >= 20% oder Anomaliesignal >= 3.0"),
+                        ],
+                        style={
+                            "display": "flex",
+                            "gap": "18px",
+                            "flexWrap": "wrap",
+                            "alignItems": "center",
+                        },
+                    ),
                 ],
                 style={
                     **TEXT_CARD_STYLE,
