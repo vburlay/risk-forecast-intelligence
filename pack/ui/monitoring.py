@@ -181,6 +181,96 @@ def build_monitoring_main_fig():
     return fig
 
 
+def build_status_logic_block():
+    return html.Div(
+        [
+            html.Div(
+                "Statuslogik",
+                style={
+                    "fontWeight": "bold",
+                    "fontSize": "18px",
+                    "color": TEXT,
+                    "marginBottom": "8px",
+                },
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span(
+                                "Normal:",
+                                style={
+                                    "color": "#2ca02c",
+                                    "fontWeight": "bold",
+                                },
+                            ),
+                            " Gap-Signal < 10% und Anomaliesignal < 1.5",
+                        ],
+                        style={
+                            "padding": "10px 12px",
+                            "border": "1px solid #d1e7dd",
+                            "borderRadius": "8px",
+                            "backgroundColor": "#f6fbf8",
+                            "textAlign": "center",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Span(
+                                "Beobachten:",
+                                style={
+                                    "color": "#f2c94c",
+                                    "fontWeight": "bold",
+                                },
+                            ),
+                            " Gap-Signal >= 10% oder Anomaliesignal >= 1.5",
+                        ],
+                        style={
+                            "padding": "10px 12px",
+                            "border": "1px solid #fff3cd",
+                            "borderRadius": "8px",
+                            "backgroundColor": "#fffdf3",
+                            "textAlign": "center",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Span(
+                                "Kritisch:",
+                                style={
+                                    "color": "#d62728",
+                                    "fontWeight": "bold",
+                                },
+                            ),
+                            " Gap-Signal >= 20% oder Anomaliesignal >= 3.0",
+                        ],
+                        style={
+                            "padding": "10px 12px",
+                            "border": "1px solid #f8d7da",
+                            "borderRadius": "8px",
+                            "backgroundColor": "#fff7f8",
+                            "textAlign": "center",
+                        },
+                    ),
+                ],
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(3, minmax(220px, 1fr))",
+                    "gap": "10px",
+                    "alignItems": "center",
+                },
+            ),
+        ],
+        style={
+            **TEXT_CARD_STYLE,
+            "fontSize": "16px",
+            "lineHeight": "1.5",
+            "padding": "12px 16px",
+            "marginBottom": "12px",
+        },
+    )
+
+
 def render_monitoring_tab(get_refresh_state_fn):
     kpi = get_monitoring_kpis()
     alert_children = build_monitoring_alerts_children()
@@ -316,6 +406,7 @@ def render_monitoring_tab(get_refresh_state_fn):
             html.Div(
                 [
                     section_title("Risikobewertung nach Teams"),
+                    build_status_logic_block(),
                     html.Div(
                         make_grid(
                             "monitoring-risk-grid",
