@@ -75,7 +75,7 @@ SIDEBAR_ITEMS = [
     ("tab-gap-survival", "🧬 Risiko"),
     ("tab-scenario", "📊 Szenarien"),
     ("tab-decision", "🎯 Maßnahmen"),
-    ("tab-description", "📘 Beschreibung & Interpretation"),
+    ("tab-description", "📘 Methodik"),
 ]
 
 
