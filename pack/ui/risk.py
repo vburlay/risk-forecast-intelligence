@@ -236,7 +236,7 @@ def build_risk_signal_summary_block():
                     ),
                     html.Div(
                         [
-                            html.Span(
+                            html.Div(
                                 [
                                     html.Span(
                                         "Normal:",
@@ -245,10 +245,17 @@ def build_risk_signal_summary_block():
                                             "fontWeight": "bold",
                                         },
                                     ),
-                                    " Gap < 10% und Anomaliesignal < 1.5",
-                                ]
+                                    " Gap-Signal < 10% und Anomaliesignal < 1.5",
+                                ],
+                                style={
+                                    "padding": "10px 12px",
+                                    "border": "1px solid #d1e7dd",
+                                    "borderRadius": "8px",
+                                    "backgroundColor": "#f6fbf8",
+                                    "textAlign": "center",
+                                },
                             ),
-                            html.Span(
+                            html.Div(
                                 [
                                     html.Span(
                                         "Beobachten:",
@@ -257,10 +264,17 @@ def build_risk_signal_summary_block():
                                             "fontWeight": "bold",
                                         },
                                     ),
-                                    " Gap >= 10% oder Anomaliesignal >= 1.5",
-                                ]
+                                    " Gap-Signal >= 10% oder Anomaliesignal >= 1.5",
+                                ],
+                                style={
+                                    "padding": "10px 12px",
+                                    "border": "1px solid #fff3cd",
+                                    "borderRadius": "8px",
+                                    "backgroundColor": "#fffdf3",
+                                    "textAlign": "center",
+                                },
                             ),
-                            html.Span(
+                            html.Div(
                                 [
                                     html.Span(
                                         "Kritisch:",
@@ -269,14 +283,21 @@ def build_risk_signal_summary_block():
                                             "fontWeight": "bold",
                                         },
                                     ),
-                                    " Gap >= 20% oder Anomaliesignal >= 3.0",
-                                ]
+                                    " Gap-Signal >= 20% oder Anomaliesignal >= 3.0",
+                                ],
+                                style={
+                                    "padding": "10px 12px",
+                                    "border": "1px solid #f8d7da",
+                                    "borderRadius": "8px",
+                                    "backgroundColor": "#fff7f8",
+                                    "textAlign": "center",
+                                },
                             ),
                         ],
                         style={
-                            "display": "flex",
-                            "gap": "18px",
-                            "flexWrap": "wrap",
+                            "display": "grid",
+                            "gridTemplateColumns": "repeat(3, minmax(220px, 1fr))",
+                            "gap": "10px",
                             "alignItems": "center",
                         },
                     ),
