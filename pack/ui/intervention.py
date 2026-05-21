@@ -218,9 +218,9 @@ def render_intervention_tab():
 
             html.Div(
                 [
-                    section_title("Ergebnisse nach Maßnahme"),
+                    section_title("Wirkung gegenüber der Ausgangslage"),
                     html.Div(
-                        make_grid("decision-grid", decision_rows, decision_cols),
+                        make_grid("decision-compare-grid", decision_comp_rows, decision_comp_cols),
                         style=CHART_CARD_STYLE,
                     ),
                 ],
@@ -228,13 +228,29 @@ def render_intervention_tab():
             ),
 
             html.Div(
-                [
-                    section_title("Veränderung gegenüber der Ausgangslage"),
-                    html.Div(
-                        make_grid("decision-compare-grid", decision_comp_rows, decision_comp_cols),
-                        style=CHART_CARD_STYLE,
-                    ),
-                ],
+                html.Details(
+                    [
+                        html.Summary(
+                            "Details der Maßnahmenanalyse",
+                            style={
+                                "fontSize": "20px",
+                                "fontWeight": "bold",
+                                "color": TEXT,
+                                "cursor": "pointer",
+                                "marginBottom": "12px",
+                            },
+                        ),
+                        html.Div(
+                            make_grid("decision-grid", decision_rows, decision_cols),
+                            style=CHART_CARD_STYLE,
+                        ),
+                    ],
+                    open=False,
+                    style={
+                        **CARD_STYLE,
+                        "padding": "14px 16px",
+                    },
+                ),
                 style=SECTION_STYLE,
             ),
         ],
