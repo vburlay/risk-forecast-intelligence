@@ -241,7 +241,7 @@ def build_risk_signal_summary_block():
                                     html.Span(
                                         "Normal:",
                                         style={
-                                            "color": "#0f5132",
+                                            "color": "#2ca02c",
                                             "fontWeight": "bold",
                                         },
                                     ),
@@ -253,7 +253,7 @@ def build_risk_signal_summary_block():
                                     html.Span(
                                         "Beobachten:",
                                         style={
-                                            "color": "#664d03",
+                                            "color": "#f2c94c",
                                             "fontWeight": "bold",
                                         },
                                     ),
@@ -265,7 +265,7 @@ def build_risk_signal_summary_block():
                                     html.Span(
                                         "Kritisch:",
                                         style={
-                                            "color": "#842029",
+                                            "color": "#d62728",
                                             "fontWeight": "bold",
                                         },
                                     ),
