@@ -116,13 +116,13 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
 
         if tr.name == "TAGEN":
             tr.line["dash"] = "solid"
-            tr.name = "Ist"
+            tr.name = "Ist-Wert"
         elif tr.name == "PROGNOSE":
             tr.line["dash"] = "dash"
-            tr.name = "Forecast"
+            tr.name = "Prognose"
         elif tr.name == "baseline_forecast":
             tr.line["dash"] = "dot"
-            tr.name = "Baseline Forecast"
+            tr.name = "Baseline"
 
     fig.update_layout(
         font=dict(size=20),

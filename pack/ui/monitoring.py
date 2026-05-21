@@ -140,7 +140,7 @@ def build_monitoring_main_fig():
             x=plot_df["x"],
             y=plot_df["TAGEN"],
             mode="lines+markers",
-            name="Ist",
+            name="Ist-Wert",
             line=dict(width=3),
             marker=dict(size=8),
         )
@@ -151,7 +151,7 @@ def build_monitoring_main_fig():
             x=plot_df["x"],
             y=plot_df["PROGNOSE"],
             mode="lines+markers",
-            name="Forecast",
+            name="Prognose",
             line=dict(width=3, dash="dash"),
             marker=dict(size=8),
         )
