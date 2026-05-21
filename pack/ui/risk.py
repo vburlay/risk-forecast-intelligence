@@ -217,7 +217,12 @@ def build_risk_signal_summary_block():
                     kpi_card("Höchstes 30-Tage-Signal", highest_p30),
                     kpi_card("Normale Teams", normal),
                 ],
-                style=KPI_CONTAINER_STYLE_TIGHT,
+                style={
+                    **KPI_CONTAINER_STYLE_TIGHT,
+                    "width": "100%",
+                    "margin": "0 0 14px 0",
+                    "gridTemplateColumns": "repeat(4, minmax(170px, 1fr))",
+                },
             ),
             html.Div(
                 [
@@ -238,10 +243,14 @@ def build_risk_signal_summary_block():
                     **TEXT_CARD_STYLE,
                     "fontSize": "16px",
                     "lineHeight": "1.5",
+                    "padding": "12px 16px",
                 },
             ),
         ],
-        style=SECTION_STYLE,
+        style={
+            **SECTION_STYLE,
+            "margin": "0 auto 24px auto",
+        },
     )
 
 
@@ -252,18 +261,7 @@ def render_risk_tab():
         [
             html.H4("🧬 Zukunftsrisiken", style=BIG_TITLE_STYLE),
 
-            html.Div(
-                "Hinweis: Die Risiko-Wahrscheinlichkeiten sind heuristische Signale zur "
-                "Entscheidungsunterstützung. Sie dienen der Priorisierung und sind kein "
-                "validiertes Survival-Modell.",
-                style={
-                    **TEXT_CARD_STYLE,
-                    "width": PAGE_WIDTH,
-                    "margin": "0 auto 18px auto",
-                    "fontSize": "16px",
-                    "lineHeight": "1.45",
-                },
-            ),
+            build_risk_signal_summary_block(),
 
             html.Div(
                 [
@@ -272,8 +270,6 @@ def render_risk_tab():
                 ],
                 style=TWO_COLUMN_ROW_STYLE,
             ),
-
-            build_risk_signal_summary_block(),
 
             html.Div(
                 [
