@@ -156,10 +156,16 @@ Die fachliche Logik folgt der analytischen Kette:
 - **Zukunftsrisiken** verdichten diese Informationen zu einer priorisierbaren Zukunftssicht
 
 **Interpretation der Kennzahlen**
+- **Gap-Signal** = relative Abweichung zwischen aktuellem Wert und Prognose. Es zeigt die Größe der Abweichung im Verhältnis zur Erwartung.
+- **Anomaliesignal** = Stärke der Abweichung im Verhältnis zur typischen Streuung. Es zeigt, ob eine Abweichung ungewöhnlich stark ist.
 - **P(Gap in 30 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 30 Tagen
 - **P(Gap in 90 Tagen)** = geschätzte Eintrittswahrscheinlichkeit innerhalb von 90 Tagen
 - **Erwartete Zeit bis zum Gap** = erwarteter Zeitraum bis zum nächsten kritischen Ereignis
 - **Risikostatus** = zusammenfassende Bewertung der aktuellen Risikolage
+
+**Unterschied zwischen Gap-Signal und Anomaliesignal**
+- **Gap-Signal** beantwortet: Wie groß ist die Abweichung relativ zur Prognose?
+- **Anomaliesignal** beantwortet: Wie ungewöhnlich ist diese Abweichung im Vergleich zur typischen Schwankung?
 
 **GAP event**
 Ein GAP event ist ein kritisches Abweichungsereignis. Es beschreibt eine Situation, in der die beobachtete Entwicklung deutlich vom erwarteten Verlauf abweicht und fachlich relevant wird.
