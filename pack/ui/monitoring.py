@@ -405,7 +405,6 @@ def render_monitoring_tab(get_refresh_state_fn):
             ),
             html.Div(
                 [
-                    section_title("Risikobewertung nach Teams"),
                     build_status_logic_block(),
                     html.Div(
                         make_grid(
