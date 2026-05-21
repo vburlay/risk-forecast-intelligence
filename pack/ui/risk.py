@@ -236,9 +236,42 @@ def build_risk_signal_summary_block():
                     ),
                     html.Div(
                         [
-                            html.Span("Normal: Gap < 10% und Anomaliesignal < 1.5"),
-                            html.Span("Beobachten: Gap >= 10% oder Anomaliesignal >= 1.5"),
-                            html.Span("Kritisch: Gap >= 20% oder Anomaliesignal >= 3.0"),
+                            html.Span(
+                                [
+                                    html.Span(
+                                        "Normal:",
+                                        style={
+                                            "color": "#0f5132",
+                                            "fontWeight": "bold",
+                                        },
+                                    ),
+                                    " Gap < 10% und Anomaliesignal < 1.5",
+                                ]
+                            ),
+                            html.Span(
+                                [
+                                    html.Span(
+                                        "Beobachten:",
+                                        style={
+                                            "color": "#664d03",
+                                            "fontWeight": "bold",
+                                        },
+                                    ),
+                                    " Gap >= 10% oder Anomaliesignal >= 1.5",
+                                ]
+                            ),
+                            html.Span(
+                                [
+                                    html.Span(
+                                        "Kritisch:",
+                                        style={
+                                            "color": "#842029",
+                                            "fontWeight": "bold",
+                                        },
+                                    ),
+                                    " Gap >= 20% oder Anomaliesignal >= 3.0",
+                                ]
+                            ),
                         ],
                         style={
                             "display": "flex",
