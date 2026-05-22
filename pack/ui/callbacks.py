@@ -398,11 +398,49 @@ def register_callbacks(app, team_values, default_team):
         ]
 
         iso_str = fmt_date(pd.to_datetime(str(x_val), errors="coerce"))
+        detail_header = html.Div(
+            [
+                html.Span(
+                    "Bestandsdetails zum Warnsignal",
+                    style={
+                        "fontSize": "20px",
+                        "fontWeight": "bold",
+                        "color": "#2c3e50",
+                        "marginRight": "14px",
+                    },
+                ),
+                html.Span(
+                    [
+                        html.Span(
+                            f"IPL: {iso_str}",
+                            style={
+                                "fontWeight": "bold",
+                                "color": "#119DFF",
+                            },
+                        ),
+                        html.Span(" · Top 10 nach Fehlertagen"),
+                    ],
+                    style={
+                        "padding": "6px 10px",
+                        "borderRadius": "8px",
+                        "backgroundColor": "#eef6ff",
+                        "color": "#2c3e50",
+                        "fontSize": "16px",
+                    },
+                ),
+            ],
+            style={
+                "display": "flex",
+                "alignItems": "center",
+                "gap": "0",
+                "flexWrap": "wrap",
+            },
+        )
 
         return (
             df.to_dict("records"),
             col_defs,
-            f"Top 10 BESTAND (max. /BIC/YBWRFTAGE) für IPL={iso_str} (raw: {ipl_db_value})",
+            detail_header,
             visible_style,
         )
 
