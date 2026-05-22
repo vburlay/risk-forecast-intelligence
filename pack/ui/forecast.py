@@ -157,7 +157,7 @@ def render_forecast_tab(default_team, team_values):
 
     return html.Div(
         [
-            html.H4("📈 Erwartete Entwicklung der Lücken-Tage", style=TITLE_STYLE),
+            html.H4("📈 Lücken-Tage: Ist-Wert und Prognose", style=TITLE_STYLE),
 
             html.Div(
                 [
