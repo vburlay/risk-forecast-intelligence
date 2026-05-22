@@ -240,7 +240,7 @@ def render_forecast_tab(default_team, team_values):
 
             html.Div(
                 [
-                    section_title("Detailansicht der erwarteten Team-Entwicklung"),
+                    section_title("Prognose und Risikosignale im Detail"),
                     html.Div(
                         make_grid(
                             "forecast-detail-grid",
