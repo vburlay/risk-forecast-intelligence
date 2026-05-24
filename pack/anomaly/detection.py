@@ -39,11 +39,11 @@ def prepare_anomaly_series(df: pd.DataFrame) -> pd.DataFrame:
     if data["IPL_dt"].notna().any():
         data = data.sort_values("IPL_dt").reset_index(drop=True)
         data["x"] = data["IPL_dt"]
-        x_title = "IPL"
+        x_title = "IPL-Datum"
     else:
         data = data.sort_values("IPL").reset_index(drop=True)
         data["x"] = data["IPL"].astype(str)
-        x_title = "IPL"
+        x_title = "IPL-Datum"
 
     data.attrs["x_title"] = x_title
     return data
@@ -237,11 +237,20 @@ def anomaly_figure(
         legend_title_text="",
         clickmode="event+select",
     )
-    fig.update_yaxes(title_text="Lücken-Tage", title_font=dict(size=26), tickfont=dict(size=22))
+    fig.update_yaxes(
+        title_text="Lücken-Tage",
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        showgrid=True,
+        gridcolor="rgba(44, 62, 80, 0.12)",
+        zeroline=False,
+    )
     fig.update_xaxes(
         title_text=data.attrs.get("x_title", "IPL"),
-        title_font=dict(size=26),
-        tickfont=dict(size=22),
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        tickangle=-35,
+        tickformat="%Y-%m",
     )
 
     kpi = {

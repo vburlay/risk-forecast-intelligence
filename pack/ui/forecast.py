@@ -135,13 +135,18 @@ def build_forecast_fig(df_filtered: pd.DataFrame):
 
     fig.update_yaxes(
         title_text="Lücken-Tage",
-        title_font=dict(size=26),
-        tickfont=dict(size=22),
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        showgrid=True,
+        gridcolor="rgba(44, 62, 80, 0.12)",
+        zeroline=False,
     )
     fig.update_xaxes(
-        title_text=x_title,
-        title_font=dict(size=26),
-        tickfont=dict(size=22),
+        title_text="IPL-Datum" if x_title == "IPL" else x_title,
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        tickangle=-35,
+        tickformat="%Y-%m" if x_col == "IPL_dt" else None,
     )
 
     return fig

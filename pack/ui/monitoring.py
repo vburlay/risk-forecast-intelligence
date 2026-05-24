@@ -169,13 +169,18 @@ def build_monitoring_main_fig():
 
     fig.update_yaxes(
         title_text="Lücken-Tage",
-        title_font=dict(size=26),
-        tickfont=dict(size=22),
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        showgrid=True,
+        gridcolor="rgba(44, 62, 80, 0.12)",
+        zeroline=False,
     )
     fig.update_xaxes(
-        title_text="IPL",
-        title_font=dict(size=26),
-        tickfont=dict(size=22),
+        title_text="IPL-Datum",
+        title_font=dict(size=20),
+        tickfont=dict(size=15),
+        tickangle=-35,
+        tickformat="%Y-%m",
     )
 
     return fig
