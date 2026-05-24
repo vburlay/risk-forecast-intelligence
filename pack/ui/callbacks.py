@@ -401,7 +401,7 @@ def register_callbacks(app, team_values, default_team):
         detail_header = html.Div(
             [
                 html.Span(
-                    "Bestandsdetails zum Warnsignal",
+                    "Treiber des Warnsignals",
                     style={
                         "fontSize": "20px",
                         "fontWeight": "bold",
@@ -418,14 +418,28 @@ def register_callbacks(app, team_values, default_team):
                                 "color": "#119DFF",
                             },
                         ),
-                        html.Span(" · Top 10 nach Fehlertagen"),
+                        html.Span(" · "),
+                        html.Span(
+                            "Sortierung: ",
+                            style={
+                                "color": "#6b7785",
+                            },
+                        ),
+                        html.Span(
+                            "Top 10 nach /BIC/YBWRFTAGE",
+                            style={
+                                "fontWeight": "bold",
+                                "color": "#2c3e50",
+                            },
+                        ),
                     ],
                     style={
                         "padding": "6px 10px",
                         "borderRadius": "8px",
-                        "backgroundColor": "#eef6ff",
+                        "backgroundColor": "#f4f9ff",
+                        "border": "1px solid #d8ebff",
                         "color": "#2c3e50",
-                        "fontSize": "16px",
+                        "fontSize": "15px",
                     },
                 ),
             ],
