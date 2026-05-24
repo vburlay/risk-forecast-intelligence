@@ -40,7 +40,7 @@ def render_anomaly_tab():
 
     return html.Div(
         [
-            html.H4("🔎 Kritische Abweichungen und Warnsignale", style=TITLE_STYLE),
+            html.H4("🔎 Warnsignale im Zeitverlauf", style=TITLE_STYLE),
 
             html.Div(
                 [
@@ -68,7 +68,7 @@ def render_anomaly_tab():
                     html.Div(
                         [
                             html.Label(
-                                "Empfindlichkeit",
+                                "Signal-Schwelle",
                                 style={
                                     "fontSize": "18px",
                                     "fontWeight": "bold",
@@ -101,7 +101,7 @@ def render_anomaly_tab():
                 children=[
                     kpi_card("Warnsignale", str(kpi["count"])),
                     kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
-                    kpi_card("Größte Abweichung", maxdev_val),
+                    kpi_card("Stärkste Abweichung", maxdev_val),
                 ],
             ),
 

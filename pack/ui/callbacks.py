@@ -340,7 +340,7 @@ def register_callbacks(app, team_values, default_team):
         return fig, [
             kpi_card("Warnsignale", str(kpi["count"])),
             kpi_card("Letztes Warnsignal", fmt_date(kpi["last"])),
-            kpi_card("Größte Abweichung", maxdev_val),
+            kpi_card("Stärkste Abweichung", maxdev_val),
         ]
 
     @app.callback(

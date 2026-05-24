@@ -168,7 +168,7 @@ def anomaly_figure(
             x=data["x"],
             y=data["baseline"],
             mode="lines",
-            name="Erwarteter Bereich (Trend)",
+            name="Erwarteter Verlauf",
             line=dict(width=2, dash="dot"),
             hovertemplate="Trend: %{y:.2f}<extra></extra>",
         )
@@ -179,7 +179,7 @@ def anomaly_figure(
             x=data["x"],
             y=data["TAGEN"],
             mode="lines+markers",
-            name="TAGEN",
+            name="Ist-Wert",
             line=dict(width=3),
             marker=dict(size=7),
             hovertemplate="IPL: %{x}<br>TAGEN: %{y:.2f}<extra></extra>",
