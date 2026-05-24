@@ -15,7 +15,33 @@ from pack.ui.components import (
 def render_description_tab():
     return html.Div(
         [
-            html.H4("📘 Beschreibung & Interpretation", style=BIG_TITLE_STYLE),
+            html.H4("📘 Methodik", style=BIG_TITLE_STYLE),
+
+            html.Div(
+                [
+                    section_title("Einordnung & aktueller Stand"),
+                    description_card(
+                        """
+Diese Anwendung befindet sich aktuell in der Phase der fachlichen und technischen Stabilisierung.
+
+Der Fokus liegt auf:
+- Validierung der Anforderungen
+- Stabilisierung der Datenflüsse
+- Strukturierung der Dashboard-Sichten
+- Abstimmung der fachlichen Risikologik
+- Vorbereitung der Architektur für spätere Modelle
+
+Aktuell werden Risikosignale regelbasiert und heuristisch abgeleitet. Die Modellierung für Prognose, Anomalieerkennung und Risikobewertung ist der nächste Ausbauschritt.
+
+**Geplanter Modellpfad**
+- **XGBoost** als teamübergreifendes Hauptmodell für Prognosen
+- **Prophet** als Baseline und transparenter Referenzverlauf
+- **Prophet-basierte Warnsignale** über Residuen oder Erwartungsintervalle
+                        """
+                    ),
+                ],
+                style=SECTION_STYLE,
+            ),
 
             html.Div(
                 [

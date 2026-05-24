@@ -1,9 +1,9 @@
 # ============================================================
 # COLORS
 # ============================================================
-BG_COLOR = "#fff9e6"
+BG_COLOR = "#f6f8fb"
 CARD_BG = "#ffffff"
-ACCENT = "#119DFF"
+ACCENT = "#0b6fb3"
 TEXT = "#2c3e50"
 TEXT_MUTED = "#6b7785"
 
@@ -14,8 +14,8 @@ DELTA_DOWN_COLOR = "#dc3545"
 # LAYOUT CONSTANTS
 # ============================================================
 PAGE_WIDTH = "90%"
-CARD_RADIUS = "12px"
-CARD_SHADOW = "0 3px 10px rgba(0,0,0,0.08)"
+CARD_RADIUS = "8px"
+CARD_SHADOW = "0 1px 3px rgba(15, 23, 42, 0.08)"
 SECTION_GAP = "24px"
 
 # ============================================================
@@ -24,7 +24,7 @@ SECTION_GAP = "24px"
 PAGE_STYLE = {
     "backgroundColor": BG_COLOR,
     "minHeight": "100vh",
-    "padding": "20px 0 40px 0",
+    "padding": "8px 0 40px 0",
 }
 
 SECTION_STYLE = {
@@ -40,7 +40,7 @@ TITLE_STYLE = {
     "color": ACCENT,
     "fontSize": "30px",
     "fontWeight": "bold",
-    "marginTop": "24px",
+    "marginTop": "8px",
     "marginBottom": "18px",
 }
 
@@ -49,9 +49,8 @@ BIG_TITLE_STYLE = {
     "color": ACCENT,
     "fontSize": "34px",
     "fontWeight": "bold",
-    "marginTop": "20px",
+    "marginTop": "8px",
     "marginBottom": "18px",
-    "textShadow": "1px 1px 2px rgba(0,0,0,0.08)",
 }
 
 SUBTITLE_STYLE = {
@@ -69,7 +68,8 @@ CARD_STYLE = {
     "padding": "16px 18px",
     "borderRadius": CARD_RADIUS,
     "boxShadow": CARD_SHADOW,
-    "borderLeft": f"5px solid {ACCENT}",
+    "border": "1px solid #d9e2ec",
+    "borderLeft": f"4px solid {ACCENT}",
     "boxSizing": "border-box",
     "width": "100%",
 }
@@ -96,7 +96,7 @@ CONTROL_CARD_STYLE = {
 APP_SHELL_STYLE = {
     "display": "flex",
     "minHeight": "100vh",
-    "backgroundColor": "rgba(135, 206, 250, 0.3)",
+    "backgroundColor": BG_COLOR,
 }
 
 CONTENT_STYLE = {
@@ -112,7 +112,8 @@ SIDEBAR_STYLE = {
     "minWidth": "280px",
     "backgroundColor": "#ffffff",
     "padding": "16px 12px",
-    "boxShadow": "2px 0 10px rgba(0,0,0,0.08)",
+    "boxShadow": "1px 0 3px rgba(15, 23, 42, 0.08)",
+    "borderRight": "1px solid #d9e2ec",
     "transition": "all 0.25s ease",
     "overflow": "hidden",
 }
@@ -122,7 +123,8 @@ SIDEBAR_COLLAPSED_STYLE = {
     "minWidth": "72px",
     "backgroundColor": "#ffffff",
     "padding": "16px 8px",
-    "boxShadow": "2px 0 10px rgba(0,0,0,0.08)",
+    "boxShadow": "1px 0 3px rgba(15, 23, 42, 0.08)",
+    "borderRight": "1px solid #d9e2ec",
     "transition": "all 0.25s ease",
     "overflow": "hidden",
 }
@@ -134,9 +136,9 @@ TAB_BUTTON_STYLE = {
     "width": "100%",
     "padding": "14px 16px",
     "marginBottom": "10px",
-    "border": "none",
-    "borderRadius": "12px",
-    "backgroundColor": "#eef6ff",
+    "border": "1px solid #d8e6f3",
+    "borderRadius": "8px",
+    "backgroundColor": "#f3f7fb",
     "color": TEXT,
     "fontSize": "17px",
     "fontWeight": "bold",
@@ -154,9 +156,9 @@ TOGGLE_BTN_STYLE = {
     "width": "100%",
     "padding": "10px 12px",
     "marginBottom": "18px",
-    "border": "none",
-    "borderRadius": "10px",
-    "backgroundColor": "#dfefff",
+    "border": "1px solid #d8e6f3",
+    "borderRadius": "8px",
+    "backgroundColor": "#f3f7fb",
     "color": TEXT,
     "fontWeight": "bold",
     "cursor": "pointer",
@@ -166,7 +168,7 @@ REFRESH_BUTTON_STYLE = {
     "padding": "6px 12px",
     "border": "none",
     "borderRadius": "8px",
-    "backgroundColor": "#6c63ff",
+    "backgroundColor": ACCENT,
     "color": "white",
     "fontSize": "13px",
     "fontWeight": "bold",

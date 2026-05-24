@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from pack.ui.styles import BG_COLOR
+
 
 def prepare_anomaly_series(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -100,8 +102,8 @@ def anomaly_empty_result() -> tuple[go.Figure, pd.DataFrame, dict[str, Any]]:
         template="plotly_white",
         height=520,
         font=dict(size=20),
-        plot_bgcolor="#fff9e6",
-        paper_bgcolor="#fff9e6",
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
         margin=dict(t=20, b=60, l=80, r=50),
         legend_title_text="",
         clickmode="event+select",
@@ -122,7 +124,7 @@ def anomaly_figure(
     df_base: pd.DataFrame,
     window: int = 8,
     sensitivity: float = 3.0,
-    bg_color: str = "#fff9e6",
+    bg_color: str = BG_COLOR,
 ) -> tuple[go.Figure, pd.DataFrame, dict[str, Any]]:
     """
     Build anomaly chart and KPI payload.
