@@ -7,7 +7,6 @@ from pack.ui.styles import *
 from pack.ui.components import sidebar_button_style
 from pack.ui.callbacks import register_callbacks, SIDEBAR_ITEMS
 
-
 app = Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
 
@@ -17,7 +16,6 @@ except Exception:
     TEAM_VALUES = []
 
 DEFAULT_TEAM = TEAM_VALUES[0] if TEAM_VALUES else None
-
 
 app.layout = html.Div(
     [
