@@ -76,7 +76,7 @@ SIDEBAR_ITEMS = [
     ("tab-gap-survival", "🧬 Risiko"),
     ("tab-scenario", "📊 Szenarien"),
     ("tab-decision", "🎯 Maßnahmen"),
-    ("tab-ai-agent", "🤖 AI Agent"),
+    ("tab-ai-agent", "🤖 KI-Agent"),
     ("tab-description", "📘 Methodik"),
 ]
 

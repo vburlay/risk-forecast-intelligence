@@ -1,5 +1,5 @@
 """
-AI Agent domain package.
+KI-Agent domain package.
 
-Future home for agent-specific orchestration primitives and domain logic.
+Future home for KI-Agent-specific orchestration primitives and domain logic.
 """
