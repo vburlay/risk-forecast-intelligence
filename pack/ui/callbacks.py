@@ -36,6 +36,7 @@ from pack.ui.intervention import (
 )
 
 from pack.ui.description import render_description_tab
+from pack.ui.agent import render_ai_agent_tab
 
 from pack.ui.components import (
     kpi_card,
@@ -75,6 +76,7 @@ SIDEBAR_ITEMS = [
     ("tab-gap-survival", "🧬 Risiko"),
     ("tab-scenario", "📊 Szenarien"),
     ("tab-decision", "🎯 Maßnahmen"),
+    ("tab-ai-agent", "🤖 AI Agent"),
     ("tab-description", "📘 Methodik"),
 ]
 
@@ -159,6 +161,9 @@ def register_callbacks(app, team_values, default_team):
 
         if tab == "tab-decision":
             return render_intervention_tab()
+
+        if tab == "tab-ai-agent":
+            return render_ai_agent_tab()
 
         if tab == "tab-description":
             return render_description_tab()

@@ -129,6 +129,15 @@ The system distinguishes between:
 
 ---
 
+### 🤖 AI Agent (Planned)
+- Dedicated workspace for future AI-assisted workflows
+- Separate domain, service, and UI modules prepared for incremental development
+- Intended to support guided analysis and decision-oriented interaction
+
+👉 The AI Agent tab is currently an architectural placeholder. Agent functionality will be defined and implemented in a later phase.
+
+---
+
 ## 🏗️ Architecture
 
 The system follows a layered decision pipeline:
@@ -139,6 +148,7 @@ The system follows a layered decision pipeline:
 4. **Risk Assessment** – quantify future risk  
 5. **Simulation** – model possible scenarios  
 6. **Decision** – evaluate corrective actions  
+7. **AI Agent (planned)** – provide AI-assisted analytical workflows  
 
 ---
 
@@ -159,25 +169,52 @@ Raw Data
 
 ```
 project/
-├── app.py  
-├── generate_data.py 
-├── test_duckdb.py  
-├── data/              # ignored (local DB)│  
+├── app.py                         # Dash application entry point
+├── generate_mock_data.py          # synthetic DuckDB dataset generator
+├── test_duckdb.py                  # local database smoke check
+├── data/                           # ignored local DuckDB files
+├── artifacts/                      # future model artifacts
+├── archive/
+│   └── dashboard_alt.py            # legacy monolithic dashboard reference
 ├── pack/
+│   ├── agent/
+│   │   ├── __init__.py
+│   │   └── core.py                 # planned AI Agent domain logic
 │   ├── anomaly/
+│   │   └── detection.py            # anomaly scoring and figures
 │   ├── forecast/
+│   │   ├── features.py             # forecasting feature engineering
+│   │   └── models.py               # baseline and future model interfaces
 │   ├── risk/
+│   │   ├── core.py                 # deterministic risk logic
+│   │   └── survival.py             # heuristic future-risk signals
 │   ├── simulation/
+│   │   ├── scenario.py             # what-if scenarios
+│   │   └── intervention.py         # corrective actions
 │   ├── services/
-│   └── ui/
-│   └── config.py  
+│   │   ├── agent_service.py        # planned AI Agent orchestration
+│   │   ├── anomaly_service.py
+│   │   ├── forecast_service.py
+│   │   ├── monitoring_service.py
+│   │   ├── risk_service.py
+│   │   └── simulation_service.py
+│   ├── ui/
+│   │   ├── agent.py                # AI Agent workspace placeholder
+│   │   ├── callbacks.py
+│   │   ├── components.py
+│   │   ├── monitoring.py
+│   │   ├── forecast.py
+│   │   ├── anomaly.py
+│   │   ├── risk.py
+│   │   ├── scenario.py
+│   │   ├── intervention.py
+│   │   ├── description.py
+│   │   └── styles.py
+│   ├── config.py
 │   └── data_access.py
-│   └── __init__.py
-│── artifacts/  
-├── requirements.txt  
-├── eda.ipynb 
-├── README.md  
-└── .gitignore  
+├── requirements.txt
+├── eda.ipynb
+└── README.md
 ```
 
 ---
@@ -252,6 +289,7 @@ http://127.0.0.1:8050/
 - Logistic regression for risk prediction  
 - Survival analysis (time-to-event modeling)  
 - Advanced anomaly detection (probabilistic methods)  
+- AI Agent workflows for guided analysis and decision support
 - Real-time data pipeline  
 - API integration  
 
