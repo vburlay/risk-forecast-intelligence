@@ -129,12 +129,12 @@ The system distinguishes between:
 
 ---
 
-### 🤖 AI Agent (Planned)
-- Dedicated workspace for future AI-assisted workflows
+### 🤖 KI-Agent (geplant)
+- Eigener Arbeitsbereich für zukünftige KI-gestützte Workflows
 - Separate domain, service, and UI modules prepared for incremental development
 - Intended to support guided analysis and decision-oriented interaction
 
-👉 The AI Agent tab is currently an architectural placeholder. Agent functionality will be defined and implemented in a later phase.
+👉 The KI-Agent tab is currently an architectural placeholder. KI-Agent functionality will be defined and implemented in a later phase.
 
 ---
 
@@ -148,7 +148,7 @@ The system follows a layered decision pipeline:
 4. **Risk Assessment** – quantify future risk  
 5. **Simulation** – model possible scenarios  
 6. **Decision** – evaluate corrective actions  
-7. **AI Agent (planned)** – provide AI-assisted analytical workflows  
+7. **KI-Agent (geplant)** – KI-gestützte Analyse-Workflows bereitstellen  
 
 ---
 
@@ -179,7 +179,7 @@ project/
 ├── pack/
 │   ├── agent/
 │   │   ├── __init__.py
-│   │   └── core.py                 # planned AI Agent domain logic
+│   │   └── core.py                 # planned KI-Agent domain logic
 │   ├── anomaly/
 │   │   └── detection.py            # anomaly scoring and figures
 │   ├── forecast/
@@ -192,14 +192,14 @@ project/
 │   │   ├── scenario.py             # what-if scenarios
 │   │   └── intervention.py         # corrective actions
 │   ├── services/
-│   │   ├── agent_service.py        # planned AI Agent orchestration
+│   │   ├── agent_service.py        # planned KI-Agent orchestration
 │   │   ├── anomaly_service.py
 │   │   ├── forecast_service.py
 │   │   ├── monitoring_service.py
 │   │   ├── risk_service.py
 │   │   └── simulation_service.py
 │   ├── ui/
-│   │   ├── agent.py                # AI Agent workspace placeholder
+│   │   ├── agent.py                # KI-Agent workspace placeholder
 │   │   ├── callbacks.py
 │   │   ├── components.py
 │   │   ├── monitoring.py
@@ -289,7 +289,7 @@ http://127.0.0.1:8050/
 - Logistic regression for risk prediction  
 - Survival analysis (time-to-event modeling)  
 - Advanced anomaly detection (probabilistic methods)  
-- AI Agent workflows for guided analysis and decision support
+- KI-Agent workflows for guided analysis and decision support
 - Real-time data pipeline  
 - API integration  
 
