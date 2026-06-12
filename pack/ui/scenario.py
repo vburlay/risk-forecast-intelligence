@@ -8,6 +8,7 @@ from pack.ui.components import (
     make_grid,
     apply_grid_styles,
 )
+from pack.ui.intervention import get_intervention_outputs
 
 from pack.services.simulation_service import (
     build_simulated_team_risk_df,
@@ -128,6 +129,252 @@ def get_scenario_outputs(mode: str, intensity_pct: float):
         sim_kpis["kritisch"],
         sim_kpis["beobachten"],
         sim_kpis["avg_signal"],
+    )
+
+
+def get_simulation_workspace_outputs(
+    mode: str,
+    scenario_type: str,
+    scenario_intensity,
+    decision_action: str,
+    decision_intensity,
+):
+    if mode == "decision":
+        outputs = get_intervention_outputs(decision_action, decision_intensity)
+        return (
+            *outputs,
+            "Maximales Restrisiko",
+            "Verbesserte Teams",
+            "Erwartete Wirkung der Maßnahme",
+            "Details der Maßnahmenanalyse",
+        )
+
+    outputs = get_scenario_outputs(scenario_type, scenario_intensity)
+    return (
+        *outputs,
+        "Maximales Risiko im Szenario",
+        "Durchschnittliches Gap-Signal",
+        "Systemreaktion im Vergleich zur Ausgangslage",
+        "Details der Szenarioanalyse",
+    )
+
+
+def render_simulation_tab():
+    outputs = get_simulation_workspace_outputs(
+        "scenario",
+        "volume",
+        20,
+        "reduce_gap",
+        15,
+    )
+    (
+        fig,
+        detail_rows,
+        detail_cols,
+        comp_rows,
+        comp_cols,
+        max_risk,
+        kritisch,
+        beobachten,
+        fourth_kpi,
+        max_risk_label,
+        fourth_kpi_label,
+        chart_title,
+        detail_title,
+    ) = outputs
+
+    label_style = {
+        "fontWeight": "bold",
+        "fontSize": "18px",
+        "color": TEXT,
+    }
+    def dynamic_kpi(title, value, title_id, value_id):
+        return html.Div(
+            [
+                html.Div(title, id=title_id, style=KPI_TITLE_STYLE),
+                html.Div(value, id=value_id, style=KPI_VALUE_STYLE),
+            ],
+            style=KPI_BASE_STYLE,
+        )
+
+    return html.Div(
+        [
+            html.H4("📊 Simulation & Wirkung", style=BIG_TITLE_STYLE),
+
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Label("Modus", style=label_style),
+                            dcc.RadioItems(
+                                id="simulation-mode",
+                                options=[
+                                    {"label": "Szenario", "value": "scenario"},
+                                    {"label": "Maßnahme", "value": "decision"},
+                                ],
+                                value="scenario",
+                                inline=True,
+                                labelStyle={
+                                    "display": "inline-flex",
+                                    "alignItems": "center",
+                                    "gap": "6px",
+                                    "marginRight": "20px",
+                                    "fontWeight": "bold",
+                                    "fontSize": "16px",
+                                    "cursor": "pointer",
+                                },
+                                inputStyle={"marginRight": "6px"},
+                            ),
+                        ],
+                        style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "260px"},
+                    ),
+                    html.Div(
+                        [
+                            html.Label("Szenario", style=label_style),
+                            dcc.Dropdown(
+                                id="scenario-type",
+                                options=[
+                                    {"label": "Volumenanstieg", "value": "volume"},
+                                    {"label": "Trendbeschleunigung", "value": "trend"},
+                                    {"label": "Volatilitätsanstieg", "value": "volatility"},
+                                ],
+                                value="volume",
+                                clearable=False,
+                            ),
+                        ],
+                        id="scenario-control-type",
+                        style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px"},
+                    ),
+                    html.Div(
+                        [
+                            html.Label("Ausprägung", style=label_style),
+                            dcc.Slider(
+                                id="scenario-intensity",
+                                min=0,
+                                max=50,
+                                step=5,
+                                value=20,
+                                marks={0: "0%", 20: "20%", 50: "50%"},
+                            ),
+                        ],
+                        id="scenario-control-intensity",
+                        style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px"},
+                    ),
+                    html.Div(
+                        [
+                            html.Label("Maßnahme", style=label_style),
+                            dcc.Dropdown(
+                                id="decision-action",
+                                options=[
+                                    {"label": "Reduktion der Lücken-Tage", "value": "reduce_gap"},
+                                    {"label": "Stabilisierung", "value": "stabilize"},
+                                    {"label": "Forecast-Anpassung", "value": "forecast_shift"},
+                                ],
+                                value="reduce_gap",
+                                clearable=False,
+                            ),
+                        ],
+                        id="decision-control-action",
+                        style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px", "display": "none"},
+                    ),
+                    html.Div(
+                        [
+                            html.Label("Stärke der Maßnahme", style=label_style),
+                            dcc.Slider(
+                                id="decision-intensity",
+                                min=0,
+                                max=50,
+                                step=5,
+                                value=15,
+                                marks={0: "0%", 15: "15%", 50: "50%"},
+                            ),
+                        ],
+                        id="decision-control-intensity",
+                        style={**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px", "display": "none"},
+                    ),
+                ],
+                style=CONTROL_ROW_STYLE,
+            ),
+
+            html.Div(
+                [
+                    dynamic_kpi(
+                        max_risk_label,
+                        max_risk,
+                        "simulation-kpi-max-risk-label",
+                        value_id="simulation-kpi-max-risk",
+                    ),
+                    kpi_card(
+                        "Kritische Teams",
+                        kritisch,
+                        value_id="simulation-kpi-kritisch",
+                    ),
+                    kpi_card(
+                        "Teams unter Beobachtung",
+                        beobachten,
+                        value_id="simulation-kpi-beobachten",
+                    ),
+                    dynamic_kpi(
+                        fourth_kpi_label,
+                        fourth_kpi,
+                        "simulation-kpi-fourth-label",
+                        value_id="simulation-kpi-fourth",
+                    ),
+                ],
+                style=KPI_CONTAINER_STYLE,
+            ),
+
+            html.Div(
+                [
+                    html.Div(chart_title, id="simulation-chart-title", style=SUBTITLE_STYLE),
+                    html.Div(
+                        dcc.Graph(id="simulation-chart", figure=fig),
+                        style=CHART_CARD_STYLE,
+                    ),
+                ],
+                style=SECTION_STYLE,
+            ),
+
+            html.Div(
+                [
+                    section_title("Wirkung gegenüber der Ausgangslage"),
+                    html.Div(
+                        make_grid("simulation-compare-grid", comp_rows, comp_cols),
+                        style=CHART_CARD_STYLE,
+                    ),
+                ],
+                style=SECTION_STYLE,
+            ),
+
+            html.Div(
+                html.Details(
+                    [
+                        html.Summary(
+                            detail_title,
+                            id="simulation-detail-title",
+                            style={
+                                "fontSize": "20px",
+                                "fontWeight": "bold",
+                                "color": TEXT,
+                                "cursor": "pointer",
+                                "marginBottom": "12px",
+                            },
+                        ),
+                        html.Div(
+                            make_grid("simulation-detail-grid", detail_rows, detail_cols),
+                            style=CHART_CARD_STYLE,
+                        ),
+                    ],
+                    open=False,
+                    style={
+                        **CARD_STYLE,
+                        "padding": "14px 16px",
+                    },
+                ),
+                style=SECTION_STYLE,
+            ),
+        ],
+        style=PAGE_STYLE,
     )
 
 

@@ -26,13 +26,8 @@ from pack.ui.anomaly import (
 from pack.ui.risk import render_risk_tab
 
 from pack.ui.scenario import (
-    render_scenario_tab,
-    get_scenario_outputs,
-)
-
-from pack.ui.intervention import (
-    render_intervention_tab,
-    get_intervention_outputs,
+    render_simulation_tab,
+    get_simulation_workspace_outputs,
 )
 
 from pack.ui.description import render_description_tab
@@ -48,6 +43,7 @@ from pack.ui.styles import (
     PAGE_STYLE,
     SIDEBAR_STYLE,
     SIDEBAR_COLLAPSED_STYLE,
+    CONTROL_CARD_STYLE,
 )
 
 from pack.services.monitoring_service import (
@@ -74,9 +70,8 @@ SIDEBAR_ITEMS = [
     ("tab-forecast", "📈 Prognose"),
     ("tab-anomalie", "🔎 Anomalien"),
     ("tab-gap-survival", "🧬 Risiko"),
-    ("tab-scenario", "📊 Szenarien"),
-    ("tab-decision", "🎯 Maßnahmen"),
-    ("tab-ai-agent", "🤖 KI-Agent"),
+    ("tab-simulation", "📊 Simulation & Wirkung"),
+    ("tab-ai-agent", "🤖 Analyse-Assistent"),
     ("tab-description", "📘 Methodik"),
 ]
 
@@ -156,11 +151,8 @@ def register_callbacks(app, team_values, default_team):
         if tab == "tab-gap-survival":
             return render_risk_tab()
 
-        if tab == "tab-scenario":
-            return render_scenario_tab()
-
-        if tab == "tab-decision":
-            return render_intervention_tab()
+        if tab == "tab-simulation":
+            return render_simulation_tab()
 
         if tab == "tab-ai-agent":
             return render_ai_agent_tab()
@@ -464,61 +456,57 @@ def register_callbacks(app, team_values, default_team):
         )
 
     @app.callback(
-        Output("scenario-chart", "figure"),
-        Output("scenario-grid", "rowData"),
-        Output("scenario-grid", "columnDefs"),
-        Output("scenario-compare-grid", "rowData"),
-        Output("scenario-compare-grid", "columnDefs"),
-        Output("scenario-kpi-max-risk", "children"),
-        Output("scenario-kpi-kritisch", "children"),
-        Output("scenario-kpi-beobachten", "children"),
-        Output("scenario-kpi-avg-signal", "children"),
-        Input("scenario-type", "value"),
-        Input("scenario-intensity", "value"),
-        Input("active-tab-store", "data"),
+        Output("scenario-control-type", "style"),
+        Output("scenario-control-intensity", "style"),
+        Output("decision-control-action", "style"),
+        Output("decision-control-intensity", "style"),
+        Input("simulation-mode", "value"),
     )
-    def update_scenario_tab(scenario_type, scenario_intensity, tab):
-        if tab != "tab-scenario":
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-            )
+    def update_simulation_controls(mode):
+        visible_style = {**CONTROL_CARD_STYLE, "flex": "1", "minWidth": "300px"}
+        hidden_style = {**visible_style, "display": "none"}
 
-        return get_scenario_outputs(scenario_type, scenario_intensity)
+        if mode == "decision":
+            return hidden_style, hidden_style, visible_style, visible_style
+
+        return visible_style, visible_style, hidden_style, hidden_style
 
     @app.callback(
-        Output("decision-chart", "figure"),
-        Output("decision-grid", "rowData"),
-        Output("decision-grid", "columnDefs"),
-        Output("decision-compare-grid", "rowData"),
-        Output("decision-compare-grid", "columnDefs"),
-        Output("decision-kpi-max-risk", "children"),
-        Output("decision-kpi-kritisch", "children"),
-        Output("decision-kpi-beobachten", "children"),
-        Output("decision-kpi-avg-signal", "children"),
+        Output("simulation-chart", "figure"),
+        Output("simulation-detail-grid", "rowData"),
+        Output("simulation-detail-grid", "columnDefs"),
+        Output("simulation-compare-grid", "rowData"),
+        Output("simulation-compare-grid", "columnDefs"),
+        Output("simulation-kpi-max-risk", "children"),
+        Output("simulation-kpi-kritisch", "children"),
+        Output("simulation-kpi-beobachten", "children"),
+        Output("simulation-kpi-fourth", "children"),
+        Output("simulation-kpi-max-risk-label", "children"),
+        Output("simulation-kpi-fourth-label", "children"),
+        Output("simulation-chart-title", "children"),
+        Output("simulation-detail-title", "children"),
+        Input("simulation-mode", "value"),
+        Input("scenario-type", "value"),
+        Input("scenario-intensity", "value"),
         Input("decision-action", "value"),
         Input("decision-intensity", "value"),
         Input("active-tab-store", "data"),
     )
-    def update_decision_tab(decision_action, decision_intensity, tab):
-        if tab != "tab-decision":
-            return (
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-                no_update,
-            )
+    def update_simulation_tab(
+        mode,
+        scenario_type,
+        scenario_intensity,
+        decision_action,
+        decision_intensity,
+        tab,
+    ):
+        if tab != "tab-simulation":
+            return tuple(no_update for _ in range(13))
 
-        return get_intervention_outputs(decision_action, decision_intensity)
+        return get_simulation_workspace_outputs(
+            mode,
+            scenario_type,
+            scenario_intensity,
+            decision_action,
+            decision_intensity,
+        )

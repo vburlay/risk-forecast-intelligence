@@ -3,8 +3,8 @@ from __future__ import annotations
 
 def get_agent_status() -> str:
     """
-    Return the current KI-Agent lifecycle status.
+    Return the current Analyse-Assistent lifecycle status.
 
-    The KI-Agent functionality will be implemented in a later project phase.
+    The Analyse-Assistent functionality will be implemented in a later project phase.
     """
     return "Geplant"

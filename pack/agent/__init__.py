@@ -1,5 +1,5 @@
 """
-KI-Agent domain package.
+Analyse-Assistent domain package.
 
-Future home for KI-Agent-specific orchestration primitives and domain logic.
+Future home for Analyse-Assistent-specific orchestration primitives and domain logic.
 """
