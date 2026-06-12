@@ -203,63 +203,41 @@ Ein GAP event ist ein kritisches Abweichungsereignis. Es beschreibt eine Situati
 
             html.Div(
                 [
-                    section_title("Szenarien"),
+                    section_title("Simulation & Wirkung"),
                     description_card(
                         """
-**Die Szenarioanalyse** erweitert das System um eine strukturierte What-if-Perspektive.
+**Simulation & Wirkung** bündelt zwei Perspektiven in einer gemeinsamen Sicht:
 
-Sie zeigt, wie empfindlich das System auf alternative Entwicklungen reagiert.
+- **Szenario** für strukturierte What-if-Analysen
+- **Maßnahme** für konkrete Eingriffe und deren erwartete Wirkung
 
 **Ziel der Sicht**
 - Auswirkungen möglicher Entwicklungen simulieren
+- Handlungsoptionen transparent vergleichen
 - Sensitivität des Systems sichtbar machen
 - Unterschiede zur Ausgangslage transparent vergleichen
 - Risiken unter veränderten Rahmenbedingungen bewerten
+- Restrisiko nach Intervention abschätzen
 
-**Verfügbare Szenarien**
+**Verfügbare Szenarien im Modus Szenario**
 - **Volumenanstieg** erhöht die Belastung direkt
 - **Trendbeschleunigung** verschiebt die Dynamik in Richtung kritischer Entwicklung
 - **Volatilitätsanstieg** verstärkt Schwankungen und Instabilität
 
-**Interpretation**
-- Wenn das Gap-Signal im Szenario deutlich steigt, reagiert das System empfindlich auf diese Veränderung.
-- Wenn Teams vom Status Normal zu Beobachten oder Kritisch wechseln, entsteht zusätzlicher Handlungsbedarf.
-- Wenn die Zeit bis kritisch sinkt, steigt die operative Dringlichkeit.
-
-**Business-Nutzen**
-Die Szenarioanalyse hilft zu verstehen, welche externen oder internen Veränderungen besonders riskant sind und wo frühzeitig Gegenmaßnahmen geplant werden sollten.
-                        """
-                    ),
-                ],
-                style=SECTION_STYLE,
-            ),
-
-            html.Div(
-                [
-                    section_title("Maßnahmen"),
-                    description_card(
-                        """
-**Die Maßnahmenanalyse** bewertet konkrete Eingriffe und deren erwartete Wirkung auf Risiko, Status und Dringlichkeit.
-
-**Ziel der Sicht**
-- Handlungsoptionen transparent vergleichen
-- erwartete Wirkung auf kritische Teams sichtbar machen
-- Restrisiko nach Intervention abschätzen
-- Priorisierung von Maßnahmen unterstützen
-
-**Verfügbare Maßnahmen**
+**Verfügbare Maßnahmen im Modus Maßnahme**
 - **Reduktion der Lücken-Tage** senkt den aktuellen Belastungswert direkt
 - **Stabilisierung** reduziert die Differenz zum Forecast
 - **Forecast-Anpassung** verschiebt die Referenzbasis
 
 **Interpretation**
+- Wenn das Gap-Signal im Szenario deutlich steigt, reagiert das System empfindlich auf diese Veränderung.
 - Sinkt das Gap-Signal nach der Maßnahme, wirkt die Maßnahme risikomindernd.
 - Wechselt ein Team von Kritisch zu Beobachten oder Normal, verbessert sich die operative Lage.
 - Bleibt das Restrisiko hoch, reicht die Maßnahme allein möglicherweise nicht aus.
 - Je stärker die Maßnahme, desto größer sollte die erwartete Wirkung sein. Gleichzeitig sollte fachlich geprüft werden, ob diese Stärke realistisch umsetzbar ist.
 
 **Business-Nutzen**
-Die Maßnahmenanalyse unterstützt Entscheidungen unter Unsicherheit. Sie zeigt nicht nur, ob eine Maßnahme wirkt, sondern auch, wie stark sie wirkt und welches Restrisiko bestehen bleibt.
+Die Sicht hilft zu verstehen, welche Entwicklungen besonders riskant sind und welche Maßnahmen die operative Lage verbessern können.
                         """
                     ),
                 ],

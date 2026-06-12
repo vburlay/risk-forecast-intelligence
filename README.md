@@ -107,22 +107,22 @@ The system distinguishes between:
 
 ---
 
-### 🧪 Scenario Simulation
-- What-if analysis:
+### 🧪 Simulation & Wirkung
+- Combined workspace with two modes:
+  - **Szenario** for what-if analysis
+  - **Maßnahme** for corrective actions
+
+- Scenario controls:
   - volume increase  
   - trend acceleration  
   - volatility changes  
 
-- Comparison vs baseline system behavior  
-
----
-
-### 🎯 Decision Support
-- Simulation of corrective actions:
+- Measure controls:
   - gap reduction  
   - stabilization  
   - forecast adjustment  
 
+- Comparison vs baseline system behavior  
 - Evaluation of **risk reduction effectiveness**  
 
 👉 The system connects **prediction → action → outcome**.
@@ -146,9 +146,8 @@ The system follows a layered decision pipeline:
 2. **Forecast** – estimate expected behavior  
 3. **Anomaly Detection** – detect deviations  
 4. **Risk Assessment** – quantify future risk  
-5. **Simulation** – model possible scenarios  
-6. **Decision** – evaluate corrective actions  
-7. **Analyse-Assistent (geplant)** – geführte Analyse-Workflows bereitstellen  
+5. **Simulation & Wirkung** – model scenarios and evaluate corrective actions  
+6. **Analyse-Assistent (geplant)** – geführte Analyse-Workflows bereitstellen  
 
 ---
 
@@ -159,8 +158,7 @@ Raw Data
    → Feature Extraction 
    → Signal Detection 
    → Risk Scoring 
-   → Simulation 
-   → Decision
+   → Simulation & Wirkung
 ```
 
 ---
