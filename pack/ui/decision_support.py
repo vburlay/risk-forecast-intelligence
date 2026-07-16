@@ -53,16 +53,82 @@ def _alternative_columns():
     )
 
 
+def _context_item(item: dict):
+    return html.Div(
+        [
+            html.Div(
+                item.get("title", ""),
+                style={
+                    "fontSize": "15px",
+                    "fontWeight": "bold",
+                    "color": TEXT_MUTED,
+                    "marginBottom": "8px",
+                },
+            ),
+            html.Div(
+                item.get("value", "—"),
+                style={
+                    "fontSize": "20px",
+                    "fontWeight": "bold",
+                    "color": TEXT,
+                    "lineHeight": "1.2",
+                    "marginBottom": "8px",
+                },
+            ),
+            html.Div(
+                item.get("detail", ""),
+                style={
+                    "fontSize": "14px",
+                    "color": TEXT_MUTED,
+                    "lineHeight": "1.35",
+                },
+            ),
+        ],
+        style={
+            **CARD_STYLE,
+            "borderLeft": "4px solid #8aa7bf",
+            "minHeight": "132px",
+            "display": "flex",
+            "flexDirection": "column",
+            "justifyContent": "space-between",
+        },
+    )
+
+
+def _context_block(items: list[dict]):
+    if not items:
+        return html.Div()
+
+    return html.Div(
+        [
+            section_title("Entscheidungskontext"),
+            html.Div(
+                [_context_item(item) for item in items],
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(auto-fit, minmax(220px, 1fr))",
+                    "gap": "12px",
+                    "alignItems": "stretch",
+                },
+            ),
+        ],
+        style=SECTION_STYLE,
+    )
+
+
 def render_decision_support_tab():
     """
     Render deterministic decision-support recommendations.
     """
     overview = get_decision_support_overview()
+    context_items = overview.get("decision_context", [])
     expected = overview.get("expected_outcome", {})
     alternatives = overview.get("alternatives", [])
 
     return html.Div(
         [
+            _context_block(context_items),
+
             html.Div(
                 [
                     _decision_text_card(

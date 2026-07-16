@@ -115,6 +115,48 @@ def _format_pct(value: float) -> str:
     return f"{int(round(value * 100, 0))}%"
 
 
+def _build_decision_context(
+    baseline_df: pd.DataFrame,
+    baseline: dict[str, float],
+    recommended_action: str,
+) -> list[dict[str, str]]:
+    if baseline_df.empty:
+        return []
+
+    lead_row = baseline_df.iloc[0]
+    critical = int(baseline["critical"])
+    watch = int(baseline["watch"])
+    total = int(baseline["teams"])
+
+    return [
+        {
+            "title": "Aktuelle Lage",
+            "value": f"{critical} kritisch · {watch} beobachten",
+            "detail": f"{total} Teams bewertet; Fokus auf {lead_row['Team']}.",
+        },
+        {
+            "title": "Prognosesignal",
+            "value": f"{lead_row['Aktuell']} Ist · {lead_row['Erwartet']} Prognose",
+            "detail": f"Abweichung {lead_row['Abweichung']} bei {lead_row['Team']}.",
+        },
+        {
+            "title": "Warnsignal",
+            "value": f"Anomaliesignal {lead_row['Anomaliesignal']}",
+            "detail": f"Gap-Signal {lead_row['GapSignal']} als stärkstes aktuelles Signal.",
+        },
+        {
+            "title": "Risikostatus",
+            "value": str(lead_row["Risikostatus"]),
+            "detail": f"Zeit bis kritisch: {lead_row['ZeitBisKritisch']} Tage.",
+        },
+        {
+            "title": "Empfohlene Entscheidung",
+            "value": recommended_action,
+            "detail": "Auswahl basiert auf der stärksten simulierten Risikoreduktion.",
+        },
+    ]
+
+
 def build_decision_support() -> dict:
     """
     Build deterministic decision-support recommendation from current risk
@@ -190,6 +232,11 @@ def build_decision_support() -> dict:
     return {
         "recommended_action": f"{best['label']} ({best['intensity']}%)",
         "reasoning": " ".join(reasoning_parts),
+        "decision_context": _build_decision_context(
+            baseline_df,
+            baseline,
+            f"{best['label']} ({best['intensity']}%)",
+        ),
         "expected_outcome": {
             "critical": f"{baseline['critical']} → {best['outcome']['critical']}",
             "watch": f"{baseline['watch']} → {best['outcome']['watch']}",
