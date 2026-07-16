@@ -107,10 +107,10 @@ The system distinguishes between:
 
 ---
 
-### 🧪 Simulation & Wirkung
+### 🧪 Simulation & Impact
 - Combined workspace with two modes:
-  - **Szenario** for what-if analysis
-  - **Maßnahme** for corrective actions
+  - **Scenario** for what-if analysis
+  - **Measure** for corrective actions
 
 - Scenario controls:
   - volume increase  
@@ -129,12 +129,12 @@ The system distinguishes between:
 
 ---
 
-### 🤖 Analyse-Assistent (geplant)
-- Eigener Arbeitsbereich für zukünftige geführte Analyse-Workflows
-- Separate domain, service, and UI modules prepared for incremental development
-- Intended to support guided analysis and decision-oriented interaction
+### 🧭 Decision Support
+- Rule-based workspace for action-oriented recommendations
+- Compares available corrective actions against the current risk situation
+- Explains the recommended action, expected KPI changes, alternatives, and confidence
 
-👉 The Analyse-Assistent tab is currently an architectural placeholder. Analyse-Assistent functionality will be defined and implemented in a later phase.
+👉 Decision Support translates simulation outputs into a concrete action recommendation.
 
 ---
 
@@ -146,8 +146,8 @@ The system follows a layered decision pipeline:
 2. **Forecast** – estimate expected behavior  
 3. **Anomaly Detection** – detect deviations  
 4. **Risk Assessment** – quantify future risk  
-5. **Simulation & Wirkung** – model scenarios and evaluate corrective actions  
-6. **Analyse-Assistent (geplant)** – geführte Analyse-Workflows bereitstellen  
+5. **Simulation & Impact** – model scenarios and evaluate corrective actions  
+6. **Decision Support** – recommend actions and explain expected impact  
 
 ---
 
@@ -158,7 +158,7 @@ Raw Data
    → Feature Extraction 
    → Signal Detection 
    → Risk Scoring 
-   → Simulation & Wirkung
+   → Simulation & Impact
 ```
 
 ---
@@ -175,9 +175,9 @@ project/
 ├── archive/
 │   └── dashboard_alt.py            # legacy monolithic dashboard reference
 ├── pack/
-│   ├── agent/
+│   ├── decision_support/
 │   │   ├── __init__.py
-│   │   └── core.py                 # planned Analyse-Assistent domain logic
+│   │   └── core.py                 # decision support recommendation logic
 │   ├── anomaly/
 │   │   └── detection.py            # anomaly scoring and figures
 │   ├── forecast/
@@ -190,14 +190,14 @@ project/
 │   │   ├── scenario.py             # what-if scenarios
 │   │   └── intervention.py         # corrective actions
 │   ├── services/
-│   │   ├── agent_service.py        # planned Analyse-Assistent orchestration
+│   │   ├── decision_support_service.py # decision support orchestration
 │   │   ├── anomaly_service.py
 │   │   ├── forecast_service.py
 │   │   ├── monitoring_service.py
 │   │   ├── risk_service.py
 │   │   └── simulation_service.py
 │   ├── ui/
-│   │   ├── agent.py                # Analyse-Assistent workspace placeholder
+│   │   ├── decision_support.py     # Decision Support workspace
 │   │   ├── callbacks.py
 │   │   ├── components.py
 │   │   ├── monitoring.py
@@ -287,7 +287,7 @@ http://127.0.0.1:8050/
 - Logistic regression for risk prediction  
 - Survival analysis (time-to-event modeling)  
 - Advanced anomaly detection (probabilistic methods)  
-- Analyse-Assistent workflows for guided analysis and decision support
+- Advanced decision-support workflows for guided analysis
 - Real-time data pipeline  
 - API integration  
 

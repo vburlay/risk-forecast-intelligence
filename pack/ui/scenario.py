@@ -199,8 +199,6 @@ def render_simulation_tab():
 
     return html.Div(
         [
-            html.H4("📊 Simulation & Wirkung", style=BIG_TITLE_STYLE),
-
             html.Div(
                 [
                     html.Div(

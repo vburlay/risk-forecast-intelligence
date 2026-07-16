@@ -1,7 +1,6 @@
 from dash import html
 
 from pack.ui.styles import (
-    BIG_TITLE_STYLE,
     PAGE_STYLE,
     SECTION_STYLE,
 )
@@ -15,8 +14,6 @@ from pack.ui.components import (
 def render_description_tab():
     return html.Div(
         [
-            html.H4("📘 Methodik", style=BIG_TITLE_STYLE),
-
             html.Div(
                 [
                     section_title("Einordnung & aktueller Stand"),
@@ -238,6 +235,34 @@ Ein GAP event ist ein kritisches Abweichungsereignis. Es beschreibt eine Situati
 
 **Business-Nutzen**
 Die Sicht hilft zu verstehen, welche Entwicklungen besonders riskant sind und welche Maßnahmen die operative Lage verbessern können.
+                        """
+                    ),
+                ],
+                style=SECTION_STYLE,
+            ),
+
+            html.Div(
+                [
+                    section_title("Entscheidungshilfe"),
+                    description_card(
+                        """
+**Entscheidungshilfe** übersetzt die aktuelle Risikolage und die simulierten Maßnahmen in eine konkrete Handlungsempfehlung.
+
+**Ziel der Sicht**
+- empfohlene Maßnahme sichtbar machen
+- fachliche Begründung transparent darstellen
+- erwartete KPI-Veränderungen zusammenfassen
+- Alternativen und deren Folgen vergleichbar machen
+- Unsicherheit der Empfehlung einordnen
+
+**Logik**
+Die Empfehlung ist regelbasiert. Das System vergleicht verfügbare Maßnahmen gegen die aktuelle Ausgangslage und priorisiert die Option, die kritische Teams, Gap-Signal und Restrisiko am stärksten reduziert.
+
+**Vertrauen**
+Vertrauen ist ein heuristischer Vertrauenswert. Er basiert auf der Stärke des erwarteten Effekts, dem Abstand zur zweitbesten Alternative und der Datenabdeckung. Er ist keine validierte statistische Wahrscheinlichkeit.
+
+**Business-Nutzen**
+Die Sicht unterstützt Entscheidungen unter Unsicherheit, ersetzt aber keine fachliche Freigabe. Sie macht transparent, welche Maßnahme aus Systemsicht aktuell den größten erwarteten Nutzen hat.
                         """
                     ),
                 ],
