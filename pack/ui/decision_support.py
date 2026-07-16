@@ -9,34 +9,147 @@ from pack.ui.styles import (
     PAGE_STYLE,
     SECTION_STYLE,
     TEXT,
-    TEXT_CARD_STYLE,
     TEXT_MUTED,
 )
 
 
-def _decision_text_card(title: str, body: str):
+def _reasoning_points(reasoning: str) -> list[str]:
+    if not reasoning:
+        return ["Keine Begründung verfügbar."]
+
+    points = []
+    for part in reasoning.split(". "):
+        clean = part.strip()
+        if not clean:
+            continue
+        if not clean.endswith("."):
+            clean = f"{clean}."
+        points.append(clean)
+    return points
+
+
+def _summary_metric(label: str, value: str):
     return html.Div(
         [
             html.Div(
-                title,
+                label,
                 style={
-                    "fontSize": "18px",
+                    "fontSize": "13px",
                     "fontWeight": "bold",
                     "color": TEXT_MUTED,
-                    "marginBottom": "8px",
+                    "marginBottom": "4px",
                 },
             ),
             html.Div(
-                body,
+                value,
                 style={
-                    "fontSize": "22px" if title == "Entscheidungsempfehlung" else "18px",
-                    "fontWeight": "bold" if title == "Entscheidungsempfehlung" else "normal",
+                    "fontSize": "18px",
+                    "fontWeight": "bold",
                     "color": TEXT,
-                    "lineHeight": "1.45",
+                    "lineHeight": "1.15",
                 },
             ),
         ],
-        style=TEXT_CARD_STYLE,
+        style={
+            "backgroundColor": "#f6f8fb",
+            "border": "1px solid #d9e2ec",
+            "borderRadius": "8px",
+            "padding": "10px 12px",
+            "minWidth": "0",
+        },
+    )
+
+
+def _decision_summary_block(overview: dict, expected: dict):
+    reasoning = overview.get("reasoning", "Keine Begründung verfügbar.")
+    points = _reasoning_points(reasoning)
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div(
+                        "Entscheidungsübersicht",
+                        style={
+                            "fontSize": "16px",
+                            "fontWeight": "bold",
+                            "color": TEXT_MUTED,
+                            "marginBottom": "8px",
+                        },
+                    ),
+                    html.Div(
+                        overview.get("recommended_action", "Keine Empfehlung verfügbar"),
+                        style={
+                            "fontSize": "28px",
+                            "fontWeight": "bold",
+                            "color": TEXT,
+                            "lineHeight": "1.15",
+                            "marginBottom": "18px",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            _summary_metric("Vertrauen", overview.get("confidence", "—")),
+                            _summary_metric("Kritische Teams", expected.get("critical", "—")),
+                            _summary_metric("Ø Gap-Signal", expected.get("avg_gap", "—")),
+                        ],
+                        style={
+                            "display": "grid",
+                            "gridTemplateColumns": "repeat(auto-fit, minmax(140px, 1fr))",
+                            "gap": "10px",
+                        },
+                    ),
+                ],
+                style={
+                    "minWidth": "0",
+                    "paddingRight": "8px",
+                },
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        "Begründung",
+                        style={
+                            "fontSize": "16px",
+                            "fontWeight": "bold",
+                            "color": TEXT_MUTED,
+                            "marginBottom": "10px",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Div(
+                                point,
+                                style={
+                                    "fontSize": "16px",
+                                    "color": TEXT,
+                                    "lineHeight": "1.35",
+                                    "padding": "9px 0",
+                                    "borderBottom": "1px solid #e7edf3"
+                                    if idx < len(points) - 1
+                                    else "none",
+                                },
+                            )
+                            for idx, point in enumerate(points)
+                        ],
+                    ),
+                ],
+                style={
+                    "minWidth": "0",
+                    "paddingLeft": "8px",
+                    "borderLeft": "1px solid #e1e8ef",
+                },
+            ),
+        ],
+        style={
+            **CARD_STYLE,
+            "width": "90%",
+            "margin": "0 auto 24px auto",
+            "display": "grid",
+            "gridTemplateColumns": "minmax(280px, 0.85fr) minmax(360px, 1.15fr)",
+            "gap": "20px",
+            "alignItems": "start",
+        },
     )
 
 
@@ -129,25 +242,7 @@ def render_decision_support_tab():
         [
             _context_block(context_items),
 
-            html.Div(
-                [
-                    _decision_text_card(
-                        "Entscheidungsempfehlung",
-                        overview.get("recommended_action", "Keine Empfehlung verfügbar"),
-                    ),
-                    _decision_text_card(
-                        "Begründung",
-                        overview.get("reasoning", "Keine Begründung verfügbar."),
-                    ),
-                ],
-                style={
-                    "width": "90%",
-                    "margin": "0 auto 24px auto",
-                    "display": "grid",
-                    "gridTemplateColumns": "repeat(auto-fit, minmax(360px, 1fr))",
-                    "gap": "16px",
-                },
-            ),
+            _decision_summary_block(overview, expected),
 
             html.Div(
                 [
