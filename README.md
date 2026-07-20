@@ -1,11 +1,11 @@
-# 🧠 IQ Early Warning System  
-### Predictive Risk Monitoring & Decision Intelligence Platform
+# 🧠 Decision Intelligence Platform
+### Operational Risk Forecasting and Decision-Support Prototype
 
 ---
 
 ## 📌 Overview
 
-The IQ Early Warning System converts raw operational data into **structured decision intelligence** by detecting risks early, quantifying uncertainty, and evaluating the impact of potential interventions.
+The Decision Intelligence Platform converts raw operational data into **structured decision intelligence** by detecting risks early, quantifying uncertainty, and evaluating the impact of potential interventions.
 
 Unlike traditional dashboards that focus on retrospective analysis, the system:
 

@@ -74,7 +74,7 @@ app.layout = html.Div(
                     },
                 ),
                 html.Div(
-                    "Ein Decision-Intelligence-System zur Früherkennung von Risiken, Prognose zukünftiger Entwicklungen und Simulation von Maßnahmen zur Entscheidungsunterstützung unter Unsicherheit.",
+                    "Früherkennung operativer Risiken, Prognosen und Simulationen zur fundierten Entscheidungsfindung.",
                     style={
                         "textAlign": "center",
                         "fontSize": "17px",

@@ -28,6 +28,27 @@ DECISION_OPTIONS = [
     },
 ]
 
+SCENARIO_OPTIONS = [
+    {
+        "id": "volume",
+        "label": "Volumenanstieg",
+        "intensity": 15,
+        "summary": "Zeigt, wie stark zusätzliche operative Belastung die Risikolage verschärft.",
+    },
+    {
+        "id": "trend",
+        "label": "Trendbeschleunigung",
+        "intensity": 15,
+        "summary": "Zeigt, wie empfindlich die Teams auf eine beschleunigte Entwicklung reagieren.",
+    },
+    {
+        "id": "volatility",
+        "label": "Volatilitätsanstieg",
+        "intensity": 15,
+        "summary": "Zeigt, wie zusätzliche Schwankung bestehende Abweichungen verstärkt.",
+    },
+]
+
 
 STATUS_RANK = {
     "Normal": 0,
@@ -157,6 +178,46 @@ def _build_decision_context(
     ]
 
 
+def _scenario_impact_label(
+    baseline: dict[str, float],
+    outcome: dict[str, float],
+) -> str:
+    critical_delta = outcome["critical"] - baseline["critical"]
+    avg_gap_delta = (outcome["avg_gap"] - baseline["avg_gap"]) * 100
+
+    if critical_delta > 0 or avg_gap_delta >= 3:
+        return "Erhöhte Dringlichkeit"
+    if critical_delta == 0 and avg_gap_delta >= 0:
+        return "Stabile Risikolage"
+    return "Geringere Belastung"
+
+
+def _build_scenario_context(
+    baseline_df: pd.DataFrame,
+    baseline: dict[str, float],
+) -> list[dict[str, str]]:
+    if baseline_df.empty:
+        return []
+
+    scenarios = []
+    for option in SCENARIO_OPTIONS:
+        simulated_df = build_simulated_team_risk_df(option["id"], option["intensity"])
+        outcome = _risk_metrics(simulated_df)
+        scenarios.append(
+            {
+                "Szenario": option["label"],
+                "Stärke": f"{option['intensity']}%",
+                "Kritische Teams": f"{baseline['critical']} → {outcome['critical']}",
+                "Max. Gap-Signal": f"{_format_pct(baseline['max_gap'])} → {_format_pct(outcome['max_gap'])}",
+                "Ø Gap-Signal": f"{_format_pct(baseline['avg_gap'])} → {_format_pct(outcome['avg_gap'])}",
+                "Einordnung": _scenario_impact_label(baseline, outcome),
+                "Beschreibung": option["summary"],
+            }
+        )
+
+    return scenarios
+
+
 def build_decision_support() -> dict:
     """
     Build deterministic decision-support recommendation from current risk
@@ -171,6 +232,7 @@ def build_decision_support() -> dict:
             "reasoning": "Es liegen aktuell keine auswertbaren Risikodaten vor.",
             "expected_outcome": {},
             "alternatives": [],
+            "scenario_context": [],
             "confidence": "Niedrig (0%)",
         }
 
@@ -237,6 +299,7 @@ def build_decision_support() -> dict:
             baseline,
             f"{best['label']} ({best['intensity']}%)",
         ),
+        "scenario_context": _build_scenario_context(baseline_df, baseline),
         "expected_outcome": {
             "critical": f"{baseline['critical']} → {best['outcome']['critical']}",
             "watch": f"{baseline['watch']} → {best['outcome']['watch']}",

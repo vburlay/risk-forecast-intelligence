@@ -322,8 +322,6 @@ def render_risk_tab():
 
     return html.Div(
         [
-            html.H4("🧬 Zukunftsrisiken", style=BIG_TITLE_STYLE),
-
             build_risk_signal_summary_block(),
 
             html.Div(

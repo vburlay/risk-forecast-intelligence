@@ -42,10 +42,10 @@ Aktuell werden Risikosignale regelbasiert und heuristisch abgeleitet. Die Modell
 
             html.Div(
                 [
-                    section_title("Steuerung"),
+                    section_title("Überblick"),
                     description_card(
                         """
-**Die operative Steuerung** zeigt die aktuelle Gesamtsituation des Systems auf einen Blick.
+**Der Überblick** zeigt die aktuelle Gesamtsituation des Systems auf einen Blick.
 
 **Ziel der Sicht**
 - aktuelle Belastung und Forecast-Abweichung sichtbar machen
@@ -157,14 +157,14 @@ Der letzte Tag kann vorläufig erhöhte Werte enthalten, da die Periode noch nic
 
             html.Div(
                 [
-                    section_title("Risiko"),
+                    section_title("Risikoausblick"),
                     description_card(
                         """
-**Zukunftsrisiken** beschreiben die geschätzte Eintrittswahrscheinlichkeit eines kritischen Gap-Ereignisses innerhalb definierter Zeithorizonte.
+**Risikoausblick** beschreibt die geschätzte Eintrittswahrscheinlichkeit eines kritischen Gap-Ereignisses innerhalb definierter Zeithorizonte.
 
 Die fachliche Logik folgt der analytischen Kette:
 
-**Operative Steuerung → Erwartete Entwicklung → Kritische Abweichungen → Zukunftsrisiko**
+**Operative Steuerung → Erwartete Entwicklung → Kritische Abweichungen → Risikoausblick**
 
 **Ziel der Sicht**
 - Risiken über mehrere Zeithorizonte vergleichen
@@ -176,7 +176,7 @@ Die fachliche Logik folgt der analytischen Kette:
 - **Operative Steuerung** zeigt die aktuelle Situation
 - **Erwartete Entwicklung** beschreibt die wahrscheinliche Dynamik
 - **Kritische Abweichungen** machen Instabilität sichtbar
-- **Zukunftsrisiken** verdichten diese Informationen zu einer priorisierbaren Zukunftssicht
+- **Risikoausblick** verdichtet diese Informationen zu einer priorisierbaren Zukunftssicht
 
 **Interpretation der Kennzahlen**
 - **Gap-Signal** = relative Abweichung zwischen aktuellem Wert und Prognose. Es zeigt die Größe der Abweichung im Verhältnis zur Erwartung.
@@ -258,8 +258,30 @@ Die Sicht hilft zu verstehen, welche Entwicklungen besonders riskant sind und we
 **Logik**
 Die Empfehlung ist regelbasiert. Das System vergleicht verfügbare Maßnahmen gegen die aktuelle Ausgangslage und priorisiert die Option, die kritische Teams, Gap-Signal und Restrisiko am stärksten reduziert.
 
-**Vertrauen**
-Vertrauen ist ein heuristischer Vertrauenswert. Er basiert auf der Stärke des erwarteten Effekts, dem Abstand zur zweitbesten Alternative und der Datenabdeckung. Er ist keine validierte statistische Wahrscheinlichkeit.
+**Entscheidungskontext**
+- **Aktuelle Lage** fasst die aktuelle Anzahl kritischer Teams und Teams unter Beobachtung zusammen.
+- **Prognosesignal** vergleicht aktuellen Ist-Wert und Prognose für das stärkste aktuelle Risikosignal.
+- **Warnsignal** zeigt, wie ungewöhnlich die aktuelle Abweichung im Verhältnis zur typischen Streuung ist.
+- **Risikostatus** verdichtet Gap-Signal und Anomaliesignal zu Normal, Beobachten oder Kritisch.
+- **Empfohlene Entscheidung** zeigt die Maßnahme mit der stärksten erwarteten Risikoreduktion.
+
+**Interpretation der KPI**
+- **Kritische Teams** = Veränderung der Anzahl kritischer Teams von der Ausgangslage zur empfohlenen Entscheidung.
+- **Teams unter Beobachtung** = Veränderung der Teams mit erhöhtem, aber noch nicht kritischem Risiko.
+- **Max. Gap-Signal** = Veränderung der größten relativen Abweichung zwischen Ist-Wert und Prognose.
+- **Ø Gap-Signal** = Veränderung des durchschnittlichen Gap-Signals über alle Teams.
+- **Verbesserte Teams** = Anzahl der Teams, deren Risikostatus sich durch die empfohlene Entscheidung verbessert.
+- **Empfehlungssicherheit** = heuristischer Vertrauenswert der Empfehlung. Er basiert auf der Stärke des erwarteten Effekts, dem Abstand zur zweitbesten Alternative und der Datenabdeckung. Er ist keine validierte statistische Wahrscheinlichkeit.
+
+**Szenario-Kontext**
+Szenarien beschreiben externe oder strukturelle Veränderungen der Lage. Sie sind keine Handlungsempfehlungen, sondern zeigen, unter welchen Bedingungen die Dringlichkeit steigt oder stabil bleibt.
+
+- **Volumenanstieg** prüft die Wirkung zusätzlicher operativer Belastung.
+- **Trendbeschleunigung** prüft die Wirkung einer schnelleren Verschlechterung der Entwicklung.
+- **Volatilitätsanstieg** prüft die Wirkung stärkerer Schwankungen und Instabilität.
+
+**Alternative Entscheidungen**
+Alternative Entscheidungen sind konkrete Maßnahmen, die aktiv umgesetzt werden können. Sie werden gegen die aktuelle Ausgangslage verglichen und nach erwarteter Risikoreduktion eingeordnet.
 
 **Business-Nutzen**
 Die Sicht unterstützt Entscheidungen unter Unsicherheit, ersetzt aber keine fachliche Freigabe. Sie macht transparent, welche Maßnahme aus Systemsicht aktuell den größten erwarteten Nutzen hat.

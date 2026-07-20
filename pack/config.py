@@ -33,7 +33,7 @@ DB_RETRY_DELAY = 0.25
 # App settings
 # ============================================================
 
-APP_TITLE = "IQ Frühwarnsystem"
+APP_TITLE = "Plattform für Entscheidungsunterstützung"
 
 DEFAULT_REFRESH_INTERVAL_MS = 700
 

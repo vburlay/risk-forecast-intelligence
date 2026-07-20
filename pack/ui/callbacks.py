@@ -66,10 +66,10 @@ from pack.services.risk_service import build_team_risk_df
 
 
 SIDEBAR_ITEMS = [
-    ("tab-monitoring", "📊 Steuerung"),
+    ("tab-monitoring", "📊 Überblick"),
     ("tab-forecast", "📈 Prognose"),
     ("tab-anomalie", "🔎 Anomalien"),
-    ("tab-gap-survival", "🧬 Risiko"),
+    ("tab-gap-survival", "⏳ Risikoausblick"),
     ("tab-simulation", "📊 Simulation & Wirkung"),
     ("tab-decision-support", "🧭 Entscheidungshilfe"),
     ("tab-description", "📘 Methodik"),
